@@ -480,7 +480,7 @@ const DeadlineTracker = () => {
               className="w-full mt-2 bg-blue-600 hover:bg-blue-700 text-white text-sm py-1"
             >
               <Repeat className="w-4 h-4 mr-1" />
-              Повторить
+              Repeat
             </Button>
           )}
         </div>
