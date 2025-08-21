@@ -597,7 +597,7 @@ const DeadlineTracker = () => {
                       onClick={handleSaveDeadline}
                       className="flex-1 bg-slate-700 hover:bg-slate-800"
                       disabled={!formData.name.trim() || !formData.task.trim() || !formData.dueDate || 
-                               (formData.isRecurring && (!formData.intervalDays || formData.intervalDays === 'custom'))}
+                               (formData.isRecurring && formData.intervalDays === 'custom' && !formData.customDays.trim())}
                     >
                       {editingDeadline ? 'Save Changes' : 'Add Deadline'}
                     </Button>
