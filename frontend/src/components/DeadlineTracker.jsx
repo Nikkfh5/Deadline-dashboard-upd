@@ -391,7 +391,7 @@ const DeadlineTracker = () => {
                 className="cursor-pointer text-blue-600 focus:text-blue-600"
               >
                 <Repeat className="w-4 h-4 mr-2" />
-                Повторить
+                Repeat
               </DropdownMenuItem>
             )}
             <DropdownMenuItem 
