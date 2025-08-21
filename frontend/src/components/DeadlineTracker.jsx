@@ -226,7 +226,8 @@ const DeadlineTracker = () => {
       task: deadline.task || '',
       dueDate: formatDateTimeForInput(deadline.dueDate),
       isRecurring: deadline.isRecurring || false,
-      intervalDays: deadline.intervalDays ? deadline.intervalDays.toString() : '7'
+      intervalDays: deadline.intervalDays ? deadline.intervalDays.toString() : '7',
+      customDays: ''
     });
     setIsModalOpen(true);
   };
