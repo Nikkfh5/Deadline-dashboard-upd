@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, Plus, X, Edit3, MoreVertical, Repeat } from 'lucide-react';
+import { Clock, Plus, X, Edit3, MoreVertical, Repeat, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
 import { Input } from './ui/input';
@@ -11,6 +11,7 @@ import { Card } from './ui/card';
 import { Checkbox } from './ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Badge } from './ui/badge';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
 import { mockDeadlines } from '../mock';
 
 const DeadlineTracker = () => {
