@@ -213,7 +213,8 @@ const DeadlineTracker = () => {
       task: '', 
       dueDate: '', 
       isRecurring: false, 
-      intervalDays: '7' 
+      intervalDays: '7',
+      customDays: ''
     });
     setIsModalOpen(true);
   };
