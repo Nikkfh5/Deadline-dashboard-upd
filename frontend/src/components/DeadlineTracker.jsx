@@ -1,0 +1,654 @@
+import React, { useState, useEffect } from 'react';
+import { Clock, Plus, X, Edit3, MoreVertical, Repeat } from 'lucide-react';
+import { Button } from './ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
+import { Textarea } from './ui/textarea';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './ui/dropdown-menu';
+import { Card } from './ui/card';
+import { Checkbox } from './ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Badge } from './ui/badge';
+import { mockDeadlines } from '../mock';
+
+const DeadlineTracker = () => {
+  const [deadlines, setDeadlines] = useState([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingDeadline, setEditingDeadline] = useState(null);
+  const [formData, setFormData] = useState({ 
+    name: '', 
+    task: '', 
+    dueDate: '', 
+    isRecurring: false, 
+    intervalDays: '7' 
+  });
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Helper function to migrate old data structure to new format
+  const migrateDeadline = (deadline) => {
+    return {
+      id: deadline.id,
+      name: deadline.name,
+      task: deadline.task || '',
+      dueDate: deadline.dueDate,
+      createdAt: deadline.createdAt,
+      updatedAt: deadline.updatedAt,
+      // New fields with defaults for backward compatibility
+      isRecurring: deadline.isRecurring || false,
+      intervalDays: deadline.intervalDays,
+      lastStartedAt: deadline.lastStartedAt || deadline.createdAt
+    };
+  };
+
+  useEffect(() => {
+    // Load from localStorage or use mock data with migration
+    const saved = localStorage.getItem('deadlines');
+    if (saved) {
+      const parsedDeadlines = JSON.parse(saved);
+      const migratedDeadlines = parsedDeadlines.map(migrateDeadline);
+      setDeadlines(migratedDeadlines);
+      // Save migrated data back to localStorage if any migration occurred
+      if (JSON.stringify(migratedDeadlines) !== saved) {
+        localStorage.setItem('deadlines', JSON.stringify(migratedDeadlines));
+      }
+    } else {
+      const migratedMockDeadlines = mockDeadlines.map(migrateDeadline);
+      setDeadlines(migratedMockDeadlines);
+      localStorage.setItem('deadlines', JSON.stringify(migratedMockDeadlines));
+    }
+  }, []);
+
+  useEffect(() => {
+    // Update current time every second
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    // Save to localStorage whenever deadlines change
+    if (deadlines.length > 0) {
+      localStorage.setItem('deadlines', JSON.stringify(deadlines));
+    }
+  }, [deadlines]);
+
+  const calculateTimeLeft = (dueDate) => {
+    // All calculations in UTC, stored timestamps are in UTC
+    const now = currentTime.getTime();
+    const due = new Date(dueDate).getTime();
+    const diff = due - now;
+
+    if (diff <= 0) {
+      return { days: 0, hours: 0, minutes: 0, seconds: 0, isOverdue: true, totalMs: Math.abs(diff) };
+    }
+
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+    return { days, hours, minutes, seconds, isOverdue: false, totalMs: diff };
+  };
+
+  const getProgressColor = (timeLeft, deadline) => {
+    if (timeLeft.isOverdue) return 'stroke-red-500';
+    
+    // For recurring deadlines, calculate progress from lastStartedAt
+    // For non-recurring deadlines, use createdAt as before
+    const now = currentTime.getTime();
+    const startTime = deadline.isRecurring && deadline.lastStartedAt 
+      ? new Date(deadline.lastStartedAt).getTime()
+      : new Date(deadline.createdAt).getTime();
+    const due = new Date(deadline.dueDate).getTime();
+    
+    const totalDuration = due - startTime;
+    const elapsed = now - startTime;
+    const progress = totalDuration > 0 ? elapsed / totalDuration : 1;
+    
+    if (progress < 0.5) return 'stroke-green-500';   // 0-50% elapsed
+    if (progress < 0.9) return 'stroke-yellow-500';  // 50-90% elapsed
+    return 'stroke-red-500';                         // 90%+ elapsed
+  };
+
+  const getProgressPercentage = (timeLeft, deadline) => {
+    if (timeLeft.isOverdue) return 0;
+    
+    // For recurring deadlines, calculate progress from lastStartedAt
+    // For non-recurring deadlines, use createdAt as before
+    const now = currentTime.getTime();
+    const startTime = deadline.isRecurring && deadline.lastStartedAt 
+      ? new Date(deadline.lastStartedAt).getTime()
+      : new Date(deadline.createdAt).getTime();
+    const due = new Date(deadline.dueDate).getTime();
+    
+    const totalDuration = due - startTime;
+    const elapsed = now - startTime;
+    const progress = totalDuration > 0 ? elapsed / totalDuration : 1;
+    
+    // Return remaining percentage (100% - elapsed%)
+    return Math.max(0, Math.min(100, (1 - progress) * 100));
+  };
+
+  const shouldPulse = (timeLeft, deadline) => {
+    if (timeLeft.isOverdue) return true;
+    
+    // For recurring deadlines, calculate progress from lastStartedAt
+    // For non-recurring deadlines, use createdAt as before
+    const now = currentTime.getTime();
+    const startTime = deadline.isRecurring && deadline.lastStartedAt 
+      ? new Date(deadline.lastStartedAt).getTime()
+      : new Date(deadline.createdAt).getTime();
+    const due = new Date(deadline.dueDate).getTime();
+    
+    const totalDuration = due - startTime;
+    const elapsed = now - startTime;
+    const progress = totalDuration > 0 ? elapsed / totalDuration : 1;
+    
+    return progress >= 0.9; // Pulse when 90%+ elapsed
+  };
+
+  // Helper function to format datetime for input (UTC to Madrid display)
+  const formatDateTimeForInput = (utcDate) => {
+    const date = new Date(utcDate);
+    // Convert to Madrid timezone for display in form
+    const madridTime = new Intl.DateTimeFormat('sv-SE', {
+      timeZone: 'Europe/Madrid',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    }).format(date).replace(' ', 'T');
+    
+    return madridTime;
+  };
+
+  // Helper function to convert Madrid datetime to UTC for storage
+  const madridToUTC = (madridDateTimeLocal) => {
+    // For simplicity, treat input as local time and convert to UTC
+    return new Date(madridDateTimeLocal).toISOString();
+  };
+
+  // Function to handle recurring deadline repetition
+  const handleRepeatDeadline = (deadline) => {
+    const now = new Date();
+    const intervalMs = deadline.intervalDays * 24 * 60 * 60 * 1000;
+    const newDueDate = new Date(now.getTime() + intervalMs);
+    
+    const updatedDeadline = {
+      ...deadline,
+      dueDate: newDueDate.toISOString(),
+      lastStartedAt: now.toISOString(),
+      updatedAt: now.toISOString()
+    };
+    
+    setDeadlines(prev => prev.map(d => d.id === deadline.id ? updatedDeadline : d));
+  };
+
+  // Filter and sort deadlines
+  const getFilteredDeadlines = () => {
+    const now = currentTime.getTime();
+    
+    const recurring = deadlines
+      .filter(d => d.isRecurring && new Date(d.dueDate).getTime() > now)
+      .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+    
+    const regular = deadlines
+      .filter(d => !d.isRecurring || new Date(d.dueDate).getTime() <= now)
+      .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+    
+    return { recurring, regular };
+  };
+
+  const openAddModal = () => {
+    setEditingDeadline(null);
+    setFormData({ 
+      name: '', 
+      task: '', 
+      dueDate: '', 
+      isRecurring: false, 
+      intervalDays: '7' 
+    });
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (deadline) => {
+    setEditingDeadline(deadline);
+    setFormData({
+      name: deadline.name,
+      task: deadline.task || '',
+      dueDate: formatDateTimeForInput(deadline.dueDate),
+      isRecurring: deadline.isRecurring || false,
+      intervalDays: deadline.intervalDays ? deadline.intervalDays.toString() : '7'
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleSaveDeadline = () => {
+    if (!formData.name.trim() || !formData.task.trim() || !formData.dueDate) return;
+    
+    const now = new Date();
+    const utcDueDate = madridToUTC(formData.dueDate);
+
+    if (editingDeadline) {
+      // Update existing deadline
+      const isRecurringChanged = formData.isRecurring !== editingDeadline.isRecurring;
+      const intervalChanged = formData.intervalDays !== (editingDeadline.intervalDays || '').toString();
+      
+      let newDueDate = utcDueDate;
+      let newLastStartedAt = editingDeadline.lastStartedAt;
+      
+      // If editing a recurring deadline and interval changed, recalculate dueDate
+      if (editingDeadline.isRecurring && formData.isRecurring && intervalChanged) {
+        const lastStarted = new Date(editingDeadline.lastStartedAt || editingDeadline.createdAt);
+        const intervalMs = parseInt(formData.intervalDays) * 24 * 60 * 60 * 1000;
+        newDueDate = new Date(lastStarted.getTime() + intervalMs).toISOString();
+      }
+      
+      // If converting to recurring, set lastStartedAt to now
+      if (!editingDeadline.isRecurring && formData.isRecurring) {
+        newLastStartedAt = now.toISOString();
+      }
+      
+      const updatedDeadline = {
+        ...editingDeadline,
+        name: formData.name.trim(),
+        task: formData.task.trim(),
+        dueDate: newDueDate,
+        updatedAt: now.toISOString(),
+        isRecurring: formData.isRecurring,
+        intervalDays: formData.isRecurring ? parseInt(formData.intervalDays) : undefined,
+        lastStartedAt: newLastStartedAt
+      };
+      setDeadlines(prev => prev.map(d => d.id === editingDeadline.id ? updatedDeadline : d));
+    } else {
+      // Add new deadline
+      const deadline = {
+        id: Date.now().toString(),
+        name: formData.name.trim(),
+        task: formData.task.trim(),
+        createdAt: now.toISOString(),
+        dueDate: utcDueDate,
+        updatedAt: now.toISOString(),
+        isRecurring: formData.isRecurring,
+        intervalDays: formData.isRecurring ? parseInt(formData.intervalDays) : undefined,
+        lastStartedAt: formData.isRecurring ? now.toISOString() : undefined
+      };
+      setDeadlines(prev => [...prev, deadline]);
+    }
+
+    setFormData({ name: '', task: '', dueDate: '', isRecurring: false, intervalDays: '7' });
+    setEditingDeadline(null);
+    setIsModalOpen(false);
+  };
+
+  const handleDeleteDeadline = (id) => {
+    setDeadlines(prev => prev.filter(d => d.id !== id));
+  };
+
+  const CircularProgress = ({ percentage, color, isOverdue, isPulsing, children }) => {
+    const radius = 45;
+    const circumference = 2 * Math.PI * radius;
+    const strokeDashoffset = circumference - (percentage / 100) * circumference;
+
+    return (
+      <div className="relative w-32 h-32">
+        <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+          {/* Background circle */}
+          <circle
+            cx="50"
+            cy="50"
+            r={radius}
+            stroke="currentColor"
+            strokeWidth="2"
+            fill="transparent"
+            className="text-slate-200"
+          />
+          {/* Progress circle */}
+          <circle
+            cx="50"
+            cy="50"
+            r={radius}
+            stroke="currentColor"
+            strokeWidth="3"
+            fill="transparent"
+            strokeDasharray={circumference}
+            strokeDashoffset={strokeDashoffset}
+            strokeLinecap="round"
+            className={`${color} transition-all duration-300 ${isPulsing ? 'animate-pulse' : ''}`}
+          />
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          {children}
+        </div>
+      </div>
+    );
+  };
+
+  const truncateText = (text, maxLength = 25) => {
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength) + '...';
+  };
+
+  // Helper function to render individual deadline card
+  const renderDeadlineCard = (deadline, isRegularSection) => {
+    const timeLeft = calculateTimeLeft(deadline.dueDate);
+    const progressColor = getProgressColor(timeLeft, deadline);
+    const progressPercentage = getProgressPercentage(timeLeft, deadline);
+    const isPulsing = shouldPulse(timeLeft, deadline);
+    const showRepeatButton = deadline.isRecurring && timeLeft.isOverdue;
+
+    return (
+      <Card 
+        key={deadline.id} 
+        className="relative p-6 bg-white shadow-md hover:shadow-xl hover:ring-2 hover:ring-slate-300 hover:ring-offset-2 transition-all duration-200 hover:scale-105 cursor-pointer border border-slate-200"
+        onClick={() => openEditModal(deadline)}
+      >
+        {/* 3-dot menu */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              onClick={(e) => e.stopPropagation()}
+              className="absolute -top-2 -right-2 w-6 h-6 bg-slate-600 hover:bg-slate-700 text-white rounded-full flex items-center justify-center text-xs transition-colors duration-200 shadow-md"
+            >
+              <MoreVertical className="w-3 h-3" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-32">
+            <DropdownMenuItem 
+              onClick={(e) => {
+                e.stopPropagation();
+                openEditModal(deadline);
+              }}
+              className="cursor-pointer"
+            >
+              <Edit3 className="w-4 h-4 mr-2" />
+              Edit
+            </DropdownMenuItem>
+            {showRepeatButton && (
+              <DropdownMenuItem 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleRepeatDeadline(deadline);
+                }}
+                className="cursor-pointer text-blue-600 focus:text-blue-600"
+              >
+                <Repeat className="w-4 h-4 mr-2" />
+                Повторить
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem 
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDeleteDeadline(deadline.id);
+              }}
+              className="cursor-pointer text-red-600 focus:text-red-600"
+            >
+              <X className="w-4 h-4 mr-2" />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {/* Badge for deadline type */}
+        <div className="absolute -top-2 -left-2">
+          {deadline.isRecurring && !timeLeft.isOverdue && (
+            <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-300 text-xs px-2 py-1">
+              каждые {deadline.intervalDays} дней
+            </Badge>
+          )}
+          {showRepeatButton && (
+            <Badge variant="outline" className="bg-orange-100 text-orange-700 border-orange-300 text-xs px-2 py-1">
+              повтор
+            </Badge>
+          )}
+        </div>
+
+        <div className="flex flex-col items-center space-y-4 mt-4">
+          {/* Circular Progress */}
+          <CircularProgress 
+            percentage={progressPercentage} 
+            color={progressColor}
+            isOverdue={timeLeft.isOverdue}
+            isPulsing={isPulsing}
+          >
+            <Clock className="w-6 h-6 text-slate-600 mb-1" />
+            <div className="text-center">
+              <div className="text-xs font-mono text-slate-700">
+                {timeLeft.isOverdue ? (
+                  <span className="text-red-600 font-semibold">OVERDUE</span>
+                ) : (
+                  `${timeLeft.days}d ${timeLeft.hours}h`
+                )}
+              </div>
+              <div className="text-xs font-mono text-slate-500">
+                {timeLeft.isOverdue ? '' : `${timeLeft.minutes}m ${timeLeft.seconds}s`}
+              </div>
+            </div>
+          </CircularProgress>
+
+          {/* Name and Task */}
+          <div className="text-center">
+            <h3 className="font-semibold text-slate-800 text-lg">{deadline.name}</h3>
+            {deadline.task && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <p className="text-xs text-slate-600 mt-1 cursor-help">
+                    {truncateText(deadline.task)}
+                  </p>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  <p>{deadline.task}</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+            <p className="text-xs text-slate-500 mt-1">
+              {new Date(deadline.dueDate).toLocaleDateString('es-ES', {
+                timeZone: 'Europe/Madrid',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              })} {timeLeft.isOverdue ? 'ago' : 'to go'}
+            </p>
+          </div>
+
+          {/* Repeat Button for regular section */}
+          {showRepeatButton && isRegularSection && (
+            <Button 
+              onClick={(e) => {
+                e.stopPropagation();
+                handleRepeatDeadline(deadline);
+              }}
+              className="w-full mt-2 bg-blue-600 hover:bg-blue-700 text-white text-sm py-1"
+            >
+              <Repeat className="w-4 h-4 mr-1" />
+              Повторить
+            </Button>
+          )}
+        </div>
+      </Card>
+    );
+  };
+
+  return (
+    <TooltipProvider>
+      <div className="min-h-screen bg-slate-50 p-6">
+        <div className="max-w-7xl mx-auto">
+          {/* Header */}
+          <div className="text-center mb-12">
+            <h1 className="text-4xl font-bold text-slate-800 tracking-wide">DEADLINES</h1>
+          </div>
+
+          {/* Add Deadline Button */}
+          <div className="flex justify-center mb-8">
+            <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+              <DialogTrigger asChild>
+                <Button 
+                  onClick={openAddModal}
+                  className="bg-slate-700 hover:bg-slate-800 text-white px-6 py-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 hover:scale-105"
+                >
+                  <Plus className="w-5 h-5 mr-2" />
+                  Add Deadline
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle className="text-slate-800">
+                    {editingDeadline ? 'Edit Deadline' : 'Add New Deadline'}
+                  </DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 mt-4">
+                  <div>
+                    <Label htmlFor="name" className="text-slate-700">Name</Label>
+                    <Input
+                      id="name"
+                      value={formData.name}
+                      onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                      placeholder="Enter person's name"
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="task" className="text-slate-700">Task / Description</Label>
+                    <Textarea
+                      id="task"
+                      value={formData.task}
+                      onChange={(e) => setFormData(prev => ({ ...prev, task: e.target.value }))}
+                      placeholder="What needs to be done?"
+                      className="mt-1 min-h-[80px]"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="dueDate" className="text-slate-700">Due Date & Time (Madrid)</Label>
+                    <Input
+                      id="dueDate"
+                      type="datetime-local"
+                      value={formData.dueDate}
+                      onChange={(e) => setFormData(prev => ({ ...prev, dueDate: e.target.value }))}
+                      className="mt-1"
+                    />
+                  </div>
+                  
+                  {/* Recurring Options */}
+                  <div className="space-y-3 border-t pt-4">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="isRecurring"
+                        checked={formData.isRecurring}
+                        onCheckedChange={(checked) => setFormData(prev => ({ ...prev, isRecurring: checked }))}
+                      />
+                      <Label htmlFor="isRecurring" className="text-slate-700">
+                        Сделать временным (повторяющимся)
+                      </Label>
+                    </div>
+                    
+                    {formData.isRecurring && (
+                      <div>
+                        <Label htmlFor="intervalDays" className="text-slate-700">Период (дни)</Label>
+                        <Select
+                          value={formData.intervalDays}
+                          onValueChange={(value) => setFormData(prev => ({ ...prev, intervalDays: value }))}
+                        >
+                          <SelectTrigger className="mt-1">
+                            <SelectValue placeholder="Выберите период" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="7">7 дней (неделя)</SelectItem>
+                            <SelectItem value="14">14 дней (2 недели)</SelectItem>
+                            <SelectItem value="30">30 дней (месяц)</SelectItem>
+                            <SelectItem value="custom">Другой период...</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        
+                        {formData.intervalDays === 'custom' && (
+                          <Input
+                            type="number"
+                            min="1"
+                            placeholder="Введите количество дней"
+                            className="mt-2"
+                            onChange={(e) => setFormData(prev => ({ ...prev, intervalDays: e.target.value }))}
+                          />
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="flex gap-3 pt-4">
+                    <Button 
+                      onClick={handleSaveDeadline}
+                      className="flex-1 bg-slate-700 hover:bg-slate-800"
+                      disabled={!formData.name.trim() || !formData.task.trim() || !formData.dueDate || 
+                               (formData.isRecurring && (!formData.intervalDays || formData.intervalDays === 'custom'))}
+                    >
+                      {editingDeadline ? 'Save Changes' : 'Add Deadline'}
+                    </Button>
+                    <Button 
+                      onClick={() => setIsModalOpen(false)}
+                      variant="outline"
+                      className="flex-1"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          {/* Deadlines Sections */}
+          {deadlines.length === 0 ? (
+            <div className="text-center py-16">
+              <Clock className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+              <p className="text-slate-500 text-lg">Nothing to track yet</p>
+              <p className="text-slate-400 text-sm mt-2">Add your first deadline to get started</p>
+            </div>
+          ) : (
+            <div className="space-y-12">
+              {(() => {
+                const { recurring, regular } = getFilteredDeadlines();
+                
+                return (
+                  <>
+                    {/* Recurring Deadlines Section */}
+                    <div>
+                      <h2 className="text-2xl font-semibold text-slate-700 mb-6 text-center">Временные</h2>
+                      {recurring.length === 0 ? (
+                        <div className="text-center py-8">
+                          <p className="text-slate-400">Нет активных временных дедлайнов</p>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-8 justify-items-center">
+                          {recurring.map((deadline) => renderDeadlineCard(deadline, false))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Regular Deadlines Section */}
+                    <div>
+                      <h2 className="text-2xl font-semibold text-slate-700 mb-6 text-center">Обычные</h2>
+                      {regular.length === 0 ? (
+                        <div className="text-center py-8">
+                          <p className="text-slate-400">Нет обычных дедлайнов</p>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-8 justify-items-center">
+                          {regular.map((deadline) => renderDeadlineCard(deadline, true))}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          )}
+        </div>
+      </div>
+    </TooltipProvider>
+  );
+};
+
+export default DeadlineTracker;
