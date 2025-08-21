@@ -238,10 +238,19 @@ const DeadlineTracker = () => {
     const now = new Date();
     const utcDueDate = madridToUTC(formData.dueDate);
 
+    // Get the correct interval value
+    const getIntervalDays = () => {
+      if (formData.intervalDays === 'custom') {
+        return parseInt(formData.customDays) || 7;
+      }
+      return parseInt(formData.intervalDays) || 7;
+    };
+
     if (editingDeadline) {
       // Update existing deadline
       const isRecurringChanged = formData.isRecurring !== editingDeadline.isRecurring;
-      const intervalChanged = formData.intervalDays !== (editingDeadline.intervalDays || '').toString();
+      const currentInterval = getIntervalDays();
+      const intervalChanged = currentInterval !== (editingDeadline.intervalDays || 7);
       
       let newDueDate = utcDueDate;
       let newLastStartedAt = editingDeadline.lastStartedAt;
@@ -249,7 +258,7 @@ const DeadlineTracker = () => {
       // If editing a recurring deadline and interval changed, recalculate dueDate
       if (editingDeadline.isRecurring && formData.isRecurring && intervalChanged) {
         const lastStarted = new Date(editingDeadline.lastStartedAt || editingDeadline.createdAt);
-        const intervalMs = parseInt(formData.intervalDays) * 24 * 60 * 60 * 1000;
+        const intervalMs = currentInterval * 24 * 60 * 60 * 1000;
         newDueDate = new Date(lastStarted.getTime() + intervalMs).toISOString();
       }
       
@@ -265,7 +274,7 @@ const DeadlineTracker = () => {
         dueDate: newDueDate,
         updatedAt: now.toISOString(),
         isRecurring: formData.isRecurring,
-        intervalDays: formData.isRecurring ? parseInt(formData.intervalDays) : undefined,
+        intervalDays: formData.isRecurring ? currentInterval : undefined,
         lastStartedAt: newLastStartedAt
       };
       setDeadlines(prev => prev.map(d => d.id === editingDeadline.id ? updatedDeadline : d));
@@ -279,13 +288,13 @@ const DeadlineTracker = () => {
         dueDate: utcDueDate,
         updatedAt: now.toISOString(),
         isRecurring: formData.isRecurring,
-        intervalDays: formData.isRecurring ? parseInt(formData.intervalDays) : undefined,
+        intervalDays: formData.isRecurring ? getIntervalDays() : undefined,
         lastStartedAt: formData.isRecurring ? now.toISOString() : undefined
       };
       setDeadlines(prev => [...prev, deadline]);
     }
 
-    setFormData({ name: '', task: '', dueDate: '', isRecurring: false, intervalDays: '7' });
+    setFormData({ name: '', task: '', dueDate: '', isRecurring: false, intervalDays: '7', customDays: '' });
     setEditingDeadline(null);
     setIsModalOpen(false);
   };
