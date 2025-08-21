@@ -627,26 +627,12 @@ const DeadlineTracker = () => {
                 
                 return (
                   <>
-                    {/* Recurring Deadlines Section */}
+                    {/* Common Deadlines Section - now first */}
                     <div>
-                      <h2 className="text-2xl font-semibold text-slate-700 mb-6 text-center">Временные</h2>
-                      {recurring.length === 0 ? (
-                        <div className="text-center py-8">
-                          <p className="text-slate-400">Нет активных временных дедлайнов</p>
-                        </div>
-                      ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-8 justify-items-center">
-                          {recurring.map((deadline) => renderDeadlineCard(deadline, false))}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Regular Deadlines Section */}
-                    <div>
-                      <h2 className="text-2xl font-semibold text-slate-700 mb-6 text-center">Обычные</h2>
+                      <h2 className="text-2xl font-semibold text-slate-700 mb-6 text-center">Common</h2>
                       {regular.length === 0 ? (
                         <div className="text-center py-8">
-                          <p className="text-slate-400">Нет обычных дедлайнов</p>
+                          <p className="text-slate-400">No common deadlines</p>
                         </div>
                       ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-8 justify-items-center">
@@ -654,6 +640,36 @@ const DeadlineTracker = () => {
                         </div>
                       )}
                     </div>
+
+                    {/* Temporary Deadlines Section - now second and collapsible */}
+                    <Collapsible open={!isTemporaryCollapsed} onOpenChange={(open) => setIsTemporaryCollapsed(!open)}>
+                      <div>
+                        <CollapsibleTrigger asChild>
+                          <Button 
+                            variant="ghost" 
+                            className="w-full text-2xl font-semibold text-slate-700 mb-6 hover:bg-slate-100 p-4 flex items-center justify-center gap-2"
+                          >
+                            Temporary
+                            {isTemporaryCollapsed ? 
+                              <ChevronDown className="w-5 h-5" /> : 
+                              <ChevronUp className="w-5 h-5" />
+                            }
+                          </Button>
+                        </CollapsibleTrigger>
+                        
+                        <CollapsibleContent className="space-y-4">
+                          {recurring.length === 0 ? (
+                            <div className="text-center py-8">
+                              <p className="text-slate-400">No active temporary deadlines</p>
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-8 justify-items-center">
+                              {recurring.map((deadline) => renderDeadlineCard(deadline, false))}
+                            </div>
+                          )}
+                        </CollapsibleContent>
+                      </div>
+                    </Collapsible>
                   </>
                 );
               })()}
