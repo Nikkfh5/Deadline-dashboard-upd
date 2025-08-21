@@ -23,9 +23,11 @@ const DeadlineTracker = () => {
     task: '', 
     dueDate: '', 
     isRecurring: false, 
-    intervalDays: '7' 
+    intervalDays: '7',
+    customDays: ''
   });
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [isTemporaryCollapsed, setIsTemporaryCollapsed] = useState(true);
 
   // Helper function to migrate old data structure to new format
   const migrateDeadline = (deadline) => {
