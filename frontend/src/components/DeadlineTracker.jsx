@@ -556,25 +556,25 @@ const DeadlineTracker = () => {
                         onCheckedChange={(checked) => setFormData(prev => ({ ...prev, isRecurring: checked }))}
                       />
                       <Label htmlFor="isRecurring" className="text-slate-700">
-                        Сделать временным (повторяющимся)
+                        Make temporary (recurring)
                       </Label>
                     </div>
                     
                     {formData.isRecurring && (
                       <div>
-                        <Label htmlFor="intervalDays" className="text-slate-700">Период (дни)</Label>
+                        <Label htmlFor="intervalDays" className="text-slate-700">Period (days)</Label>
                         <Select
                           value={formData.intervalDays}
                           onValueChange={(value) => setFormData(prev => ({ ...prev, intervalDays: value }))}
                         >
                           <SelectTrigger className="mt-1">
-                            <SelectValue placeholder="Выберите период" />
+                            <SelectValue placeholder="Select period" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="7">7 дней (неделя)</SelectItem>
-                            <SelectItem value="14">14 дней (2 недели)</SelectItem>
-                            <SelectItem value="30">30 дней (месяц)</SelectItem>
-                            <SelectItem value="custom">Другой период...</SelectItem>
+                            <SelectItem value="7">7 days (week)</SelectItem>
+                            <SelectItem value="14">14 days (2 weeks)</SelectItem>
+                            <SelectItem value="30">30 days (month)</SelectItem>
+                            <SelectItem value="custom">Custom period...</SelectItem>
                           </SelectContent>
                         </Select>
                         
@@ -582,9 +582,10 @@ const DeadlineTracker = () => {
                           <Input
                             type="number"
                             min="1"
-                            placeholder="Введите количество дней"
+                            placeholder="Enter number of days"
                             className="mt-2"
-                            onChange={(e) => setFormData(prev => ({ ...prev, intervalDays: e.target.value }))}
+                            value={formData.customDays}
+                            onChange={(e) => setFormData(prev => ({ ...prev, customDays: e.target.value }))}
                           />
                         )}
                       </div>
