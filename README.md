@@ -1,5 +1,5 @@
 # Deadline Dashboard
-
+P.S. все работает на фронте локально и сохраняется в кэше браузера
 A modern, responsive deadline tracking application built with React and FastAPI.
 
 ## Features
