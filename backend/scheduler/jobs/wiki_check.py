@@ -86,6 +86,12 @@ async def _check_url(db, parser, url, url_sources):
             )
             logger.info(f"Wiki {url}: found {len(deadlines)} deadlines, {count} new")
 
+            # Notify users about new deadlines
+            if count > 0:
+                from services.notifications import notify_new_deadlines
+                subject = result.get("subject", url.split("/")[-1].replace("_", " "))
+                await notify_new_deadlines(user_ids, deadlines, f"Wiki: {subject}", count)
+
         # Update all sources for this URL
         source_ids = [s["_id"] for s in url_sources]
         await db.sources.update_many(

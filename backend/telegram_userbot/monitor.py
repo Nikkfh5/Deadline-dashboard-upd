@@ -82,33 +82,7 @@ async def _handle_message(event):
             {"$set": {"last_post_id": event.message.id}},
         )
 
-        await _notify_users(user_ids, extracted, channel_username or channel_id_str)
+        from services.notifications import notify_new_deadlines
+        await notify_new_deadlines(user_ids, extracted, chat.title or channel_username or channel_id_str, count)
 
 
-async def _notify_users(user_ids, deadlines, channel_name):
-    """Send notification to users about new deadlines."""
-    try:
-        from telegram_bot.bot import get_bot_app
-        bot_app = get_bot_app()
-        if not bot_app:
-            return
-
-        db = get_db()
-        # Batch fetch all users
-        object_ids = [ObjectId(uid) for uid in user_ids]
-        users = await db.users.find({"_id": {"$in": object_ids}}).to_list(len(user_ids))
-
-        lines = [f"🆕 Новые дедлайны из {channel_name}:\n"]
-        for d in deadlines:
-            lines.append(f"• {d['task_name']} — {d.get('due_date', '?')}")
-        text = "\n".join(lines)
-
-        for user in users:
-            if not user.get("settings", {}).get("notifications_enabled", True):
-                continue
-            try:
-                await bot_app.bot.send_message(chat_id=user["telegram_id"], text=text)
-            except Exception as e:
-                logger.warning(f"Failed to notify user {user['telegram_id']}: {e}")
-    except Exception as e:
-        logger.error(f"Notification error: {e}")
