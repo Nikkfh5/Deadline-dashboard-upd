@@ -1,7 +1,7 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, APIRouter
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
-from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
 from pathlib import Path
@@ -14,19 +14,73 @@ from datetime import datetime
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# MongoDB connection
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
-# Create the main app without a prefix
-app = FastAPI()
 
-# Create a router with the /api prefix
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    from services.database import init_db, close_db
+    await init_db()
+    logger.info("Database initialized")
+
+    # Start Telegram bot
+    try:
+        from telegram_bot.bot import start_bot
+        await start_bot()
+    except Exception as e:
+        logger.error(f"Failed to start Telegram bot: {e}")
+
+    # Start Telethon userbot
+    try:
+        from telegram_userbot.client import start_userbot
+        await start_userbot()
+    except Exception as e:
+        logger.error(f"Failed to start Telethon userbot: {e}")
+
+    # Start scheduler
+    try:
+        from scheduler.scheduler import setup_scheduler
+        setup_scheduler()
+    except Exception as e:
+        logger.error(f"Failed to start scheduler: {e}")
+
+    yield
+
+    # Shutdown
+    try:
+        from scheduler.scheduler import shutdown_scheduler
+        shutdown_scheduler()
+    except Exception as e:
+        logger.error(f"Scheduler shutdown error: {e}")
+
+    try:
+        from telegram_bot.bot import stop_bot
+        await stop_bot()
+    except Exception as e:
+        logger.error(f"Bot shutdown error: {e}")
+
+    try:
+        from telegram_userbot.client import stop_userbot
+        await stop_userbot()
+    except Exception as e:
+        logger.error(f"Userbot shutdown error: {e}")
+
+    await close_db()
+    logger.info("Shutdown complete")
+
+
+app = FastAPI(lifespan=lifespan)
+
+# Legacy router for backward compatibility
 api_router = APIRouter(prefix="/api")
 
 
-# Define Models
 class StatusCheck(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     client_name: str
@@ -35,41 +89,43 @@ class StatusCheck(BaseModel):
 class StatusCheckCreate(BaseModel):
     client_name: str
 
-# Add your routes to the router instead of directly to app
+
 @api_router.get("/")
 async def root():
     return {"message": "Hello World"}
 
 @api_router.post("/status", response_model=StatusCheck)
 async def create_status_check(input: StatusCheckCreate):
+    from services.database import get_db
+    db = get_db()
     status_dict = input.dict()
     status_obj = StatusCheck(**status_dict)
-    _ = await db.status_checks.insert_one(status_obj.dict())
+    await db.status_checks.insert_one(status_obj.dict())
     return status_obj
 
 @api_router.get("/status", response_model=List[StatusCheck])
 async def get_status_checks():
+    from services.database import get_db
+    db = get_db()
     status_checks = await db.status_checks.find().to_list(1000)
-    return [StatusCheck(**status_check) for status_check in status_checks]
+    return [StatusCheck(**sc) for sc in status_checks]
 
-# Include the router in the main app
+
+# Include routers
 app.include_router(api_router)
 
+from routers.deadlines import router as deadlines_router
+from routers.users import router as users_router
+from routers.sources import router as sources_router
+app.include_router(deadlines_router)
+app.include_router(users_router)
+app.include_router(sources_router)
+
+cors_origins = os.environ.get("CORS_ORIGINS", "*").split(",")
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=["*"],
+    allow_origins=cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
-
-@app.on_event("shutdown")
-async def shutdown_db_client():
-    client.close()

@@ -23,3 +23,20 @@ numpy>=1.26.0
 python-multipart>=0.0.9
 jq>=1.6.0
 typer>=0.9.0
+
+# Telegram
+python-telegram-bot>=21.0
+telethon>=1.36.0
+
+# AI
+anthropic>=0.40.0
+
+# Parsing
+beautifulsoup4>=4.12.0
+lxml>=5.0.0
+
+# Scheduling
+apscheduler>=3.10.0
+
+# Async HTTP
+httpx>=0.27.0

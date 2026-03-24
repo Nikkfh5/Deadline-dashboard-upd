@@ -13,6 +13,28 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Badge } from './ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
 import { mockDeadlines } from '../mock';
+import { fetchDeadlines, createDeadline, updateDeadline, deleteDeadlineApi, hasToken } from '../services/api';
+
+// Normalize snake_case server response to camelCase frontend format
+const normalizeServerDeadline = (d) => ({
+  id: d.id,
+  name: d.name,
+  task: d.task,
+  dueDate: d.due_date,
+  createdAt: d.created_at,
+  updatedAt: d.updated_at,
+  isRecurring: d.is_recurring || false,
+  intervalDays: d.interval_days,
+  lastStartedAt: d.last_started_at || d.created_at,
+  _fromServer: true,
+});
+
+// Merge server deadlines with local-only deadlines
+const mergeDeadlines = (serverList, localList) => {
+  const serverIds = new Set(serverList.map(d => d.id));
+  const localOnly = localList.filter(d => !serverIds.has(d.id) && !d._fromServer);
+  return [...serverList, ...localOnly];
+};
 
 const DeadlineTracker = () => {
   const [deadlines, setDeadlines] = useState([]);
@@ -46,21 +68,29 @@ const DeadlineTracker = () => {
   };
 
   useEffect(() => {
-    // Load from localStorage or use mock data with migration
-    const saved = localStorage.getItem('deadlines');
-    if (saved) {
-      const parsedDeadlines = JSON.parse(saved);
-      const migratedDeadlines = parsedDeadlines.map(migrateDeadline);
-      setDeadlines(migratedDeadlines);
-      // Save migrated data back to localStorage if any migration occurred
-      if (JSON.stringify(migratedDeadlines) !== saved) {
-        localStorage.setItem('deadlines', JSON.stringify(migratedDeadlines));
+    const loadDeadlines = async () => {
+      // Load local data first
+      const saved = localStorage.getItem('deadlines');
+      let localDeadlines = [];
+      if (saved) {
+        localDeadlines = JSON.parse(saved).map(migrateDeadline);
+      } else {
+        localDeadlines = mockDeadlines.map(migrateDeadline);
       }
-    } else {
-      const migratedMockDeadlines = mockDeadlines.map(migrateDeadline);
-      setDeadlines(migratedMockDeadlines);
-      localStorage.setItem('deadlines', JSON.stringify(migratedMockDeadlines));
-    }
+      setDeadlines(localDeadlines);
+
+      // If we have a backend token, fetch and merge server deadlines
+      if (hasToken()) {
+        const serverDeadlines = await fetchDeadlines();
+        if (serverDeadlines && serverDeadlines.length > 0) {
+          const normalized = serverDeadlines.map(normalizeServerDeadline);
+          const merged = mergeDeadlines(normalized, localDeadlines);
+          setDeadlines(merged);
+          localStorage.setItem('deadlines', JSON.stringify(merged));
+        }
+      }
+    };
+    loadDeadlines();
   }, []);
 
   useEffect(() => {
@@ -71,11 +101,27 @@ const DeadlineTracker = () => {
     return () => clearInterval(timer);
   }, []);
 
+  // Periodic backend sync every 30 seconds
+  useEffect(() => {
+    if (!hasToken()) return;
+    const syncInterval = setInterval(async () => {
+      const serverDeadlines = await fetchDeadlines();
+      if (serverDeadlines && serverDeadlines.length > 0) {
+        const normalized = serverDeadlines.map(normalizeServerDeadline);
+        setDeadlines(prev => {
+          const merged = mergeDeadlines(normalized, prev);
+          // Skip update if nothing changed
+          if (JSON.stringify(merged) === JSON.stringify(prev)) return prev;
+          return merged;
+        });
+      }
+    }, 30000);
+    return () => clearInterval(syncInterval);
+  }, []);
+
   useEffect(() => {
     // Save to localStorage whenever deadlines change
-    if (deadlines.length > 0) {
-      localStorage.setItem('deadlines', JSON.stringify(deadlines));
-    }
+    localStorage.setItem('deadlines', JSON.stringify(deadlines));
   }, [deadlines]);
 
   const calculateTimeLeft = (dueDate) => {
@@ -278,6 +324,17 @@ const DeadlineTracker = () => {
         lastStartedAt: newLastStartedAt
       };
       setDeadlines(prev => prev.map(d => d.id === editingDeadline.id ? updatedDeadline : d));
+      // Sync update to backend
+      if (hasToken()) {
+        updateDeadline(editingDeadline.id, {
+          name: updatedDeadline.name,
+          task: updatedDeadline.task,
+          due_date: updatedDeadline.dueDate,
+          is_recurring: updatedDeadline.isRecurring,
+          interval_days: updatedDeadline.intervalDays,
+          last_started_at: updatedDeadline.lastStartedAt,
+        });
+      }
     } else {
       // Add new deadline
       const deadline = {
@@ -292,6 +349,17 @@ const DeadlineTracker = () => {
         lastStartedAt: formData.isRecurring ? now.toISOString() : undefined
       };
       setDeadlines(prev => [...prev, deadline]);
+      // Sync create to backend
+      if (hasToken()) {
+        createDeadline({
+          name: deadline.name,
+          task: deadline.task,
+          due_date: deadline.dueDate,
+          is_recurring: deadline.isRecurring,
+          interval_days: deadline.intervalDays,
+          last_started_at: deadline.lastStartedAt,
+        });
+      }
     }
 
     setFormData({ name: '', task: '', dueDate: '', isRecurring: false, intervalDays: '7', customDays: '' });
@@ -301,6 +369,9 @@ const DeadlineTracker = () => {
 
   const handleDeleteDeadline = (id) => {
     setDeadlines(prev => prev.filter(d => d.id !== id));
+    if (hasToken()) {
+      deleteDeadlineApi(id);
+    }
   };
 
   const CircularProgress = ({ percentage, color, isOverdue, isPulsing, children }) => {
