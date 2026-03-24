@@ -1,184 +1,179 @@
 # Deadline Dashboard
-P.S. все работает на фронте локально и сохраняется в кэше браузера
-A modern, responsive deadline tracking application built with React and FastAPI.
 
-## Features
+Дашборд для отслеживания учебных дедлайнов ФКН ВШЭ. Дедлайны добавляются автоматически через Telegram-бот: бот мониторит каналы и вики-страницы, анализирует посты через Claude Haiku и добавляет дедлайны на дашборд.
 
-✨ **Core Functionality**
-- Create and manage deadlines with real-time countdown timers
-- Circular progress indicators showing time remaining
-- Support for both regular and recurring (temporary) deadlines
-- Edit and delete deadlines with intuitive UI
-
-🎯 **Key Improvements (v2.0)**
-- **English Interface**: Fully translated from Russian to English
-- **Smart Layout**: Common deadlines displayed first, temporary deadlines in collapsible section below
-- **Collapsible Sections**: Temporary deadlines can be expanded/collapsed to reduce visual clutter
-- **Custom Periodicity**: Fixed bug allowing custom recurring periods (e.g., every 5 days)
-
-🔧 **Technical Features**
-- Real-time updates with live countdown timers
-- Responsive design with Tailwind CSS
-- Modern UI components using Radix UI
-- Local storage persistence
-- Madrid timezone support
-- REST API backend with MongoDB
-
-## Tech Stack
-
-**Frontend:**
-- React 19
-- Tailwind CSS
-- Radix UI Components
-- Axios for API calls
-- React Router Dom
-
-**Backend:**
-- FastAPI (Python)
-- MongoDB with Motor (async driver)
-- Pydantic for data validation
-- CORS support
-
-## Getting Started
-
-### Prerequisites
-- Node.js (v16+)
-- Python (v3.9+)
-- MongoDB
-- Yarn package manager
-
-### Installation
-
-1. **Clone the repository**
-   ```bash
-   git clone <your-repo-url>
-   cd deadline-dashboard
-   ```
-
-2. **Install frontend dependencies**
-   ```bash
-   cd frontend
-   yarn install
-   ```
-
-3. **Install backend dependencies**
-   ```bash
-   cd ../backend
-   pip install -r requirements.txt
-   ```
-
-4. **Set up environment variables**
-   
-   Create `backend/.env`:
-   ```
-   MONGO_URL=mongodb://localhost:27017
-   DB_NAME=deadline_tracker
-   CORS_ORIGINS=http://localhost:3000
-   ```
-   
-   Create `frontend/.env`:
-   ```
-   REACT_APP_BACKEND_URL=http://localhost:8001
-   ```
-
-### Running the Application
-
-1. **Start MongoDB** (if not already running)
-   ```bash
-   mongod
-   ```
-
-2. **Start the backend server**
-   ```bash
-   cd backend
-   uvicorn server:app --host 0.0.0.0 --port 8001 --reload
-   ```
-
-3. **Start the frontend development server**
-   ```bash
-   cd frontend
-   yarn start
-   ```
-
-4. **Open your browser**
-   Navigate to `http://localhost:3000`
-
-## Usage
-
-### Creating Deadlines
-
-1. Click "Add Deadline" button
-2. Fill in the form:
-   - **Name**: Person or project name
-   - **Task**: Description of what needs to be done
-   - **Due Date**: When the deadline expires
-   - **Make temporary**: Check for recurring deadlines
-   - **Period**: Select or enter custom recurring period
-
-### Managing Deadlines
-
-- **Edit**: Click on any deadline card to edit
-- **Delete**: Use the 3-dot menu on each card
-- **Repeat**: For overdue recurring deadlines, use the Repeat button
-- **Collapse/Expand**: Click on "Temporary" section header to show/hide
-
-### Deadline Types
-
-**Common Deadlines**: Regular one-time deadlines displayed prominently at the top
-
-**Temporary Deadlines**: Recurring deadlines that reset automatically, displayed in collapsible section below
-
-## Project Structure
+## Как это работает
 
 ```
-deadline-dashboard/
-├── frontend/
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── ui/           # Reusable UI components
-│   │   │   └── DeadlineTracker.jsx  # Main component
-│   │   ├── App.js
-│   │   ├── mock.js           # Sample data
-│   │   └── ...
-│   ├── public/
-│   ├── package.json
-│   └── ...
-├── backend/
-│   ├── server.py             # FastAPI application
-│   ├── requirements.txt
-│   └── .env.example
-├── tests/
-└── README.md
+Ты в Telegram                    Дашборд в браузере
+     |                                  |
+     |  /add_channel @cs_hse_matan      |
+     |  /add_wiki wiki.cs.hse.ru/...    |
+     |                                  |
+     v                                  v
+  TG Бот ──> Userbot слушает каналы ──> Claude Haiku анализирует посты
+                                            |
+                                            v
+                                     MongoDB (дедлайны)
+                                            |
+                                            v
+                                     Дашборд показывает
 ```
 
-## Recent Updates
+1. Пишешь боту `/start` — получаешь ссылку на дашборд
+2. Добавляешь источники: TG-каналы (`/add_channel`) или wiki-страницы (`/add_wiki`)
+3. Бот сам парсит новые посты и обновления, извлекает дедлайны через ИИ
+4. Дедлайны появляются на дашборде автоматически
 
-### v2.0 - English Translation & UX Improvements
-- 🌍 Complete English translation of interface
-- 📋 Reordered sections: Common deadlines first, Temporary second
-- 🔽 Made Temporary section collapsible to reduce clutter
-- 🐛 Fixed custom periodicity input bug
-- ✨ Improved form validation and user experience
+Дашборд также работает как standalone — можно добавлять дедлайны вручную, они сохраняются в localStorage.
 
-## API Endpoints
+## Быстрый старт
 
-- `GET /api/` - Health check
-- `GET /api/status` - Get all status checks
-- `POST /api/status` - Create new status check
-- (Additional deadline-specific endpoints can be added)
+### Что нужно
 
-## Contributing
+- Python 3.9+
+- Node.js 16+ и Yarn
+- MongoDB (локально или Docker)
+- Telegram Bot Token (от [@BotFather](https://t.me/BotFather))
+- Telegram API credentials (от [my.telegram.org](https://my.telegram.org))
+- Anthropic API Key (от [console.anthropic.com](https://console.anthropic.com))
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+### 1. Клонируй и установи
 
-## License
+```bash
+git clone https://github.com/Nikkfh5/Deadline-dashboard-upd.git
+cd Deadline-dashboard-upd
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+# Backend
+cd backend
+pip install -r requirements.txt
 
-## Support
+# Frontend
+cd ../frontend
+yarn install
+```
 
-If you encounter any issues or have questions, please open an issue on GitHub.
+### 2. Настрой переменные окружения
+
+```bash
+cd backend
+cp .env.example .env
+```
+
+Заполни `backend/.env`:
+
+```env
+MONGO_URL=mongodb://localhost:27017
+DB_NAME=deadline_tracker
+CORS_ORIGINS=http://localhost:3000
+
+TELEGRAM_BOT_TOKEN=123456:ABC-DEF...        # от @BotFather
+TELEGRAM_API_ID=12345678                     # от my.telegram.org
+TELEGRAM_API_HASH=abc123def456               # от my.telegram.org
+TELEGRAM_SESSION_STRING=                     # сгенерируй на шаге 3
+ANTHROPIC_API_KEY=sk-ant-...                 # от console.anthropic.com
+FRONTEND_URL=http://localhost:3000           # URL дашборда для ссылок в боте
+```
+
+### 3. Сгенерируй Telethon-сессию
+
+Нужен отдельный Telegram-аккаунт (номер телефона) для userbot:
+
+```bash
+cd backend
+python scripts/generate_session.py
+```
+
+Введёшь API_ID, API_HASH, номер телефона, код из Telegram. Скопируй полученную строку в `.env` → `TELEGRAM_SESSION_STRING`.
+
+### 4. Запусти
+
+```bash
+# Терминал 1: MongoDB
+mongod
+# или: docker run -d -p 27017:27017 mongo
+
+# Терминал 2: Backend (поднимает API + бот + userbot + scheduler)
+cd backend
+uvicorn server:app --host 0.0.0.0 --port 8001
+
+# Терминал 3: Frontend
+cd frontend
+yarn start
+```
+
+### 5. Открой
+
+- Дашборд: http://localhost:3000
+- Напиши боту `/start` в Telegram — получишь ссылку с токеном
+
+## Команды бота
+
+| Команда | Описание |
+|---------|----------|
+| `/start` | Регистрация + ссылка на дашборд |
+| `/add_channel @name` | Начать мониторинг TG-канала |
+| `/remove_channel @name` | Убрать канал |
+| `/list_channels` | Список каналов |
+| `/add_wiki <url>` | Добавить wiki-страницу |
+| `/remove_wiki <url>` | Убрать wiki |
+| `/list_wikis` | Список wiki |
+| `/my_deadlines` | Ближайшие дедлайны |
+| `/dashboard` | Ссылка на дашборд |
+
+## Структура проекта
+
+```
+backend/
+├── server.py                  # FastAPI — точка входа, lifespan (бот + userbot + scheduler)
+├── models/                    # Pydantic-модели: deadline, user, source, parsed_post
+├── routers/                   # API: /api/deadlines, /api/users, /api/sources
+├── services/
+│   ├── database.py            # MongoDB (Motor async) + индексы
+│   ├── haiku_analyzer.py      # Claude Haiku — анализ постов и wiki
+│   ├── wiki_parser.py         # BeautifulSoup — парсинг таблиц wiki.cs.hse.ru
+│   ├── deadline_extractor.py  # Извлечение и дедупликация дедлайнов
+│   └── auth.py                # Token-based авторизация
+├── telegram_bot/              # python-telegram-bot: команды, хендлеры
+├── telegram_userbot/          # Telethon: мониторинг каналов, автовступление
+├── scheduler/                 # APScheduler: wiki каждый час, join каналов каждые 5 мин
+├── scripts/
+│   └── generate_session.py    # Генерация Telethon StringSession
+├── tests/                     # pytest: модели, парсер, промпты, утилиты
+├── .env.example               # Шаблон переменных окружения
+└── requirements.txt
+
+frontend/
+├── src/
+│   ├── components/
+│   │   ├── DeadlineTracker.jsx  # Главный компонент — таймеры, прогресс, CRUD
+│   │   └── ui/                  # Shadcn UI компоненты (Radix)
+│   ├── services/
+│   │   └── api.js               # Axios — sync с бэкендом по токену
+│   ├── App.js
+│   └── mock.js                  # Моковые данные для работы без бэкенда
+└── package.json
+```
+
+## API
+
+| Метод | Эндпоинт | Описание |
+|-------|----------|----------|
+| GET | `/api/deadlines?token=xxx` | Все дедлайны пользователя |
+| POST | `/api/deadlines?token=xxx` | Создать дедлайн |
+| PUT | `/api/deadlines/{id}?token=xxx` | Обновить |
+| DELETE | `/api/deadlines/{id}?token=xxx` | Удалить |
+| GET | `/api/` | Health check |
+
+## Стек
+
+**Frontend:** React 19, Tailwind CSS, Radix UI (Shadcn), Axios
+
+**Backend:** FastAPI, MongoDB (Motor), python-telegram-bot, Telethon, Anthropic SDK, APScheduler, BeautifulSoup
+
+## Тесты
+
+```bash
+cd backend
+python -m pytest tests/ -v
+```
