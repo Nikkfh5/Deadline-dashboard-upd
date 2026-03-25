@@ -10,11 +10,15 @@ from services.deadline_extractor import save_extracted_deadlines
 logger = logging.getLogger(__name__)
 
 _analyzer: HaikuAnalyzer = None
+_client: TelegramClient = None
+# Cache: channel_id -> {"subject": ..., "context": ...}
+_channel_profiles: dict = {}
 
 
 def setup_handlers(client: TelegramClient):
-    global _analyzer
+    global _analyzer, _client
     _analyzer = HaikuAnalyzer()
+    _client = client
 
     @client.on(events.NewMessage())
     async def on_new_message(event):
@@ -22,6 +26,55 @@ def setup_handlers(client: TelegramClient):
             await _handle_message(event)
         except Exception as e:
             logger.error(f"Error handling message: {e}", exc_info=True)
+
+
+async def _get_channel_context(chat) -> str:
+    """Fetch recent messages from channel to build context for Haiku.
+    Cached per channel_id to avoid repeated fetches."""
+    channel_id = chat.id
+
+    # Check in-memory cache
+    if channel_id in _channel_profiles:
+        return _channel_profiles[channel_id]
+
+    # Check DB cache
+    db = get_db()
+    cached = await db.channel_profiles.find_one({"channel_id": channel_id})
+    if cached:
+        _channel_profiles[channel_id] = cached["context"]
+        return cached["context"]
+
+    # Fetch last 15 messages to build context
+    if not _client:
+        return ""
+
+    try:
+        messages = await _client.get_messages(chat, limit=15)
+        texts = []
+        for msg in reversed(messages):
+            t = msg.text or msg.message or ""
+            if t and len(t) > 15:
+                texts.append(t[:300])
+
+        context = "\n---\n".join(texts)
+
+        # Cache in DB
+        await db.channel_profiles.update_one(
+            {"channel_id": channel_id},
+            {"$set": {
+                "channel_id": channel_id,
+                "title": chat.title,
+                "username": chat.username,
+                "context": context,
+            }},
+            upsert=True,
+        )
+        _channel_profiles[channel_id] = context
+        logger.info(f"Built channel context for {chat.title} ({len(texts)} messages)")
+        return context
+    except Exception as e:
+        logger.warning(f"Failed to fetch channel context: {e}")
+        return ""
 
 
 async def _handle_message(event):
@@ -39,7 +92,6 @@ async def _handle_message(event):
 
     db = get_db()
 
-    # Build query for matching sources
     match_values = [v for v in [channel_username, channel_id_str] if v]
     sources = await db.sources.find({
         "type": "telegram_channel",
@@ -52,7 +104,14 @@ async def _handle_message(event):
 
     logger.info(f"Processing message from {channel_username or channel_id_str}: {text[:100]}...")
 
-    result = await _analyzer.analyze_post(text, channel_name=chat.title or channel_username or channel_id_str)
+    # Get channel context for better subject detection
+    channel_context = await _get_channel_context(chat)
+
+    result = await _analyzer.analyze_post(
+        text,
+        channel_name=chat.title or channel_username or channel_id_str,
+        channel_context=channel_context,
+    )
 
     if not result.get("has_deadline"):
         return
@@ -75,7 +134,6 @@ async def _handle_message(event):
     if count > 0:
         logger.info(f"Added {count} deadlines from {channel_username or channel_id_str}")
 
-        # Batch update last_post_id for all matching sources
         source_ids = [s["_id"] for s in sources]
         await db.sources.update_many(
             {"_id": {"$in": source_ids}},
@@ -84,5 +142,3 @@ async def _handle_message(event):
 
         from services.notifications import notify_new_deadlines
         await notify_new_deadlines(user_ids, extracted, chat.title or channel_username or channel_id_str, count)
-
-

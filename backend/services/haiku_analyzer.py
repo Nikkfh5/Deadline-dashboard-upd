@@ -14,12 +14,14 @@ TELEGRAM_ANALYSIS_PROMPT = """Ты анализируешь пост из Telegr
 Ключевые слова: ДЗ, домашнее задание, контрольная, КР, экзамен, зачёт, лабораторная, лаба,
 дедлайн, deadline, срок сдачи, до, к, assignment, homework, exam, test, quiz, коллоквиум.
 
-Текст поста:
+Название канала: {channel_name}
+{context_block}
+Текст поста для анализа:
 ---
 {post_text}
 ---
 
-Название канала: {channel_name}
+Определи предмет по контексту канала (предыдущие посты, название). Если канал явно относится к конкретному предмету — используй его название. Если канал общий (несколько предметов) — определи предмет по содержанию конкретного поста.
 
 Ответь JSON-объектом:
 {{
@@ -27,7 +29,7 @@ TELEGRAM_ANALYSIS_PROMPT = """Ты анализируешь пост из Telegr
   "deadlines": [
     {{
       "task_name": "краткое описание задания (например ДЗ 3)",
-      "subject": "название курса/предмета если определяется, иначе название канала",
+      "subject": "название курса/предмета, определённое из контекста канала или поста",
       "due_date": "YYYY-MM-DDTHH:MM:SS по московскому времени, или null если неясно",
       "confidence": 0.0-1.0
     }}
@@ -77,15 +79,23 @@ class HaikuAnalyzer:
             self.client = None
             logger.warning("ANTHROPIC_API_KEY not set, HaikuAnalyzer disabled")
 
-    async def analyze_post(self, text: str, channel_name: str = "") -> dict:
+    async def analyze_post(self, text: str, channel_name: str = "", channel_context: str = "") -> dict:
         if not self.client:
             return {"has_deadline": False, "deadlines": [], "reasoning": "API key not configured"}
 
         current_year = _get_academic_year()
+
+        context_block = ""
+        if channel_context:
+            # Trim context to avoid huge prompts
+            trimmed = channel_context[:3000]
+            context_block = f"\nПредыдущие посты канала (для определения предмета/тематики):\n---\n{trimmed}\n---\n"
+
         prompt = TELEGRAM_ANALYSIS_PROMPT.format(
             post_text=text,
             channel_name=channel_name,
             current_year=current_year,
+            context_block=context_block,
         )
 
         try:
