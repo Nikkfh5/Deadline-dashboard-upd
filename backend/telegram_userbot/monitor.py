@@ -8,6 +8,7 @@ from services.haiku_analyzer import HaikuAnalyzer
 from services.deadline_extractor import save_extracted_deadlines
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 _analyzer: HaikuAnalyzer = None
 _client: TelegramClient = None
@@ -87,35 +88,29 @@ async def _handle_message(event):
     if not text or len(text) < 10:
         return
 
+    logger.debug(f"Channel message: {chat.title} (id={chat.id}, username={chat.username}): {text[:80]}")
+
     channel_username = f"@{chat.username}" if chat.username else None
     channel_id = chat.id
 
     db = get_db()
 
-    # Match by @username, string ID, or channel_id field (for private channels joined via invite)
+    # Match by @username, string channel_id, or channel_id field (for private channels)
     match_values = [v for v in [channel_username, str(channel_id)] if v]
-    sources_by_identifier = await db.sources.find({
-        "type": "telegram_channel",
-        "identifier": {"$in": match_values},
-        "is_active": True,
-    }).to_list(100)
 
-    sources_by_channel_id = await db.sources.find({
+    # For private channels, chat.id is the full ID. Try matching all ways.
+    sources = await db.sources.find({
         "type": "telegram_channel",
-        "channel_id": channel_id,
         "is_active": True,
+        "$or": [
+            {"identifier": {"$in": match_values}},
+            {"channel_id": channel_id},
+            {"channel_id": {"$in": [channel_id, abs(channel_id)]}},
+        ],
     }).to_list(100)
-
-    # Merge and deduplicate
-    seen_ids = set()
-    sources = []
-    for s in sources_by_identifier + sources_by_channel_id:
-        sid = str(s["_id"])
-        if sid not in seen_ids:
-            seen_ids.add(sid)
-            sources.append(s)
 
     if not sources:
+        logger.debug(f"No sources found for channel {chat.title} (id={channel_id}, username={channel_username})")
         return
 
     logger.info(f"Processing message from {channel_username or channel_id_str}: {text[:100]}...")
