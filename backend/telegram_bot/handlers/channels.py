@@ -137,22 +137,28 @@ async def add_channel_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         result = await db.sources.insert_one(source_doc)
         source_doc["_id"] = result.inserted_id
 
-    # Try to join immediately instead of waiting for scheduler
-    await update.message.reply_text("Подключаюсь к каналу...")
-    display_name = await _try_join_now(channel, source_doc)
+    # Join in background — don't block the bot response
+    import asyncio
 
-    if display_name != channel:
-        await update.message.reply_text(
-            f"Канал \"{display_name}\" подключён!\n"
-            f"Новые дедлайны будут появляться на дашборде."
-        )
-    else:
-        await update.message.reply_text(
-            f"Канал добавлен, подключение в процессе.\n"
-            f"Бот начнёт мониторить посты в ближайшие минуты."
-        )
+    async def _join_background():
+        display_name = await _try_join_now(channel, source_doc)
+        try:
+            if display_name != channel:
+                await update.message.reply_text(
+                    f"Канал \"{display_name}\" подключён!\n"
+                    f"Новые дедлайны будут появляться на дашборде."
+                )
+            else:
+                await update.message.reply_text(
+                    f"Канал добавлен, подключение в процессе.\n"
+                    f"Бот начнёт мониторить посты в ближайшие минуты."
+                )
+        except Exception:
+            pass  # TG API timeout — not critical
+        logger.info(f"User {update.effective_user.id} added channel {channel} -> {display_name}")
 
-    logger.info(f"User {update.effective_user.id} added channel {channel} -> {display_name}")
+    await update.message.reply_text("Канал добавлен! Подключаюсь...")
+    asyncio.create_task(_join_background())
 
 
 async def remove_channel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
