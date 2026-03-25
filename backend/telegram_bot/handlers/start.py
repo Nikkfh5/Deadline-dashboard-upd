@@ -53,24 +53,29 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"/list_wikis — список wiki\n"
         f"/my_deadlines — ближайшие дедлайны\n"
         f"/dashboard — ссылка на дашборд\n"
+        f"/export — экспорт настроек\n"
+        f"/import — импорт настроек\n"
         f"/help — помощь"
     )
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "📋 Доступные команды:\n\n"
-        "📡 Каналы:\n"
+        "Доступные команды:\n\n"
+        "Каналы:\n"
         "/add_channel @channelname — начать мониторинг канала\n"
         "/remove_channel @channelname — перестать мониторить\n"
         "/list_channels — показать все каналы\n\n"
-        "📖 Wiki:\n"
+        "Wiki:\n"
         "/add_wiki URL — добавить wiki-страницу\n"
         "/remove_wiki URL — убрать wiki\n"
         "/list_wikis — показать все wiki\n\n"
-        "📊 Дедлайны:\n"
+        "Дедлайны:\n"
         "/my_deadlines — ближайшие дедлайны\n"
         "/dashboard — ссылка на дашборд\n\n"
+        "Настройки:\n"
+        "/export — экспорт всех источников в JSON\n"
+        "/import {json} — импорт источников из JSON\n\n"
         "Бот автоматически парсит новые посты и обновления wiki, "
         "используя ИИ для извлечения информации о дедлайнах."
     )

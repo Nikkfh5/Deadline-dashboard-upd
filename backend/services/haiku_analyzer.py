@@ -2,6 +2,7 @@ import anthropic
 import json
 import logging
 import os
+import re
 from datetime import datetime
 from typing import Optional
 
@@ -94,9 +95,9 @@ class HaikuAnalyzer:
                 messages=[{"role": "user", "content": prompt}],
             )
             raw = response.content[0].text.strip()
-            return json.loads(raw)
-        except json.JSONDecodeError:
-            logger.error(f"Failed to parse Haiku response as JSON: {raw[:200]}")
+            return _extract_json(raw)
+        except (json.JSONDecodeError, ValueError) as e:
+            logger.error(f"Failed to parse Haiku response as JSON: {raw[:300]}")
             return {"has_deadline": False, "deadlines": [], "reasoning": "JSON parse error"}
         except Exception as e:
             logger.error(f"Haiku API error: {e}")
@@ -122,11 +123,21 @@ class HaikuAnalyzer:
                 messages=[{"role": "user", "content": prompt}],
             )
             raw = response.content[0].text.strip()
-            data = json.loads(raw)
+            data = _extract_json(raw)
             return data.get("deadlines", [])
         except Exception as e:
             logger.error(f"Haiku wiki analysis error: {e}")
             return []
+
+
+def _extract_json(raw: str) -> dict:
+    """Extract JSON from raw response, stripping markdown code fences if present."""
+    text = raw.strip()
+    # Remove ```json ... ``` or ``` ... ```
+    match = re.search(r'```(?:json)?\s*\n?(.*?)```', text, re.DOTALL)
+    if match:
+        text = match.group(1).strip()
+    return json.loads(text)
 
 
 def _get_academic_year() -> str:

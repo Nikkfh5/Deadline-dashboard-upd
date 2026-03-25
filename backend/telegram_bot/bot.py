@@ -8,6 +8,7 @@ from telegram_bot.handlers.start import start_command, help_command, dashboard_c
 from telegram_bot.handlers.channels import add_channel_command, remove_channel_command, list_channels_command
 from telegram_bot.handlers.wiki import add_wiki_command, remove_wiki_command, list_wikis_command
 from telegram_bot.handlers.deadlines import my_deadlines_command
+from telegram_bot.handlers.settings import export_command, import_command
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,8 @@ async def start_bot():
     _app.add_handler(CommandHandler("remove_wiki", remove_wiki_command))
     _app.add_handler(CommandHandler("list_wikis", list_wikis_command))
     _app.add_handler(CommandHandler("my_deadlines", my_deadlines_command))
+    _app.add_handler(CommandHandler("export", export_command))
+    _app.add_handler(CommandHandler("import", import_command))
 
     await _app.initialize()
     await _app.start()
