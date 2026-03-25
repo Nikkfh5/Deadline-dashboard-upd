@@ -199,12 +199,12 @@ const DeadlineTracker = () => {
     return progress >= 0.9; // Pulse when 90%+ elapsed
   };
 
-  // Helper function to format datetime for input (UTC to Madrid display)
+  // Helper function to format datetime for input (UTC to Moscow display)
   const formatDateTimeForInput = (utcDate) => {
     const date = new Date(utcDate);
-    // Convert to Madrid timezone for display in form
+    // Convert to Moscow timezone for display in form
     const madridTime = new Intl.DateTimeFormat('sv-SE', {
-      timeZone: 'Europe/Madrid',
+      timeZone: 'Europe/Moscow',
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
@@ -215,7 +215,7 @@ const DeadlineTracker = () => {
     return madridTime;
   };
 
-  // Helper function to convert Madrid datetime to UTC for storage
+  // Helper function to convert Moscow datetime to UTC for storage
   const madridToUTC = (madridDateTimeLocal) => {
     // For simplicity, treat input as local time and convert to UTC
     return new Date(madridDateTimeLocal).toISOString();
@@ -531,8 +531,8 @@ const DeadlineTracker = () => {
               </Tooltip>
             )}
             <p className="text-xs text-slate-500 mt-1">
-              {new Date(deadline.dueDate).toLocaleDateString('es-ES', {
-                timeZone: 'Europe/Madrid',
+              {new Date(deadline.dueDate).toLocaleDateString('ru-RU', {
+                timeZone: 'Europe/Moscow',
                 month: 'short',
                 day: 'numeric',
                 hour: '2-digit',
@@ -608,7 +608,7 @@ const DeadlineTracker = () => {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="dueDate" className="text-slate-700">Due Date & Time (Madrid)</Label>
+                    <Label htmlFor="dueDate" className="text-slate-700">Due Date & Time (Moscow)</Label>
                     <Input
                       id="dueDate"
                       type="datetime-local"
