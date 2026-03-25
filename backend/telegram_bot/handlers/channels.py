@@ -37,11 +37,60 @@ def _normalize_channel(text: str) -> str:
     return text
 
 
+async def _try_join_now(identifier: str, source_doc: dict) -> str:
+    """Try to join channel immediately. Returns display name."""
+    try:
+        from telegram_userbot.channel_manager import join_pending_channels
+        from telegram_userbot.client import get_userbot
+        client = get_userbot()
+        if not client:
+            return identifier
+
+        db = get_db()
+
+        if identifier.startswith("invite:"):
+            invite_hash = identifier[len("invite:"):]
+            from telethon.tl.functions.messages import ImportChatInviteRequest, CheckChatInviteRequest
+            from telethon.errors import UserAlreadyParticipantError
+
+            try:
+                result = await client(ImportChatInviteRequest(invite_hash))
+                chat = result.chats[0] if result.chats else None
+            except UserAlreadyParticipantError:
+                info = await client(CheckChatInviteRequest(invite_hash))
+                chat = getattr(info, "chat", None)
+
+            if chat:
+                title = chat.title
+                await db.sources.update_one(
+                    {"_id": source_doc["_id"]},
+                    {"$set": {"joined": True, "display_name": title, "channel_id": chat.id, "updated_at": datetime.utcnow()}},
+                )
+                logger.info(f"Joined private channel: {title}")
+                return title
+        else:
+            channel = identifier.lstrip("@")
+            entity = await client.get_entity(channel)
+            from telethon.tl.functions.channels import JoinChannelRequest
+            await client(JoinChannelRequest(entity))
+            title = getattr(entity, "title", identifier)
+            await db.sources.update_one(
+                {"_id": source_doc["_id"]},
+                {"$set": {"joined": True, "display_name": title, "updated_at": datetime.utcnow()}},
+            )
+            logger.info(f"Joined public channel: {title}")
+            return title
+    except Exception as e:
+        logger.warning(f"Immediate join failed for {identifier}: {e}")
+    return identifier
+
+
 async def add_channel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
         await update.message.reply_text(
             "Укажи канал:\n/add_channel @channelname\n"
-            "или\n/add_channel https://t.me/channelname"
+            "или\n/add_channel https://t.me/channelname\n"
+            "или приватную ссылку: /add_channel https://t.me/+XXXXX"
         )
         return
 
@@ -60,17 +109,19 @@ async def add_channel_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     })
 
     if existing and existing.get("is_active", True):
-        await update.message.reply_text(f"Канал {channel} уже отслеживается.")
+        name = existing.get("display_name", channel)
+        await update.message.reply_text(f"Канал {name} уже отслеживается.")
         return
 
     if existing:
         await db.sources.update_one(
             {"_id": existing["_id"]},
-            {"$set": {"is_active": True, "updated_at": datetime.utcnow()}},
+            {"$set": {"is_active": True, "joined": False, "updated_at": datetime.utcnow()}},
         )
+        source_doc = existing
     else:
         now = datetime.utcnow()
-        await db.sources.insert_one({
+        source_doc = {
             "user_id": user_id,
             "type": "telegram_channel",
             "identifier": channel,
@@ -82,13 +133,26 @@ async def add_channel_command(update: Update, context: ContextTypes.DEFAULT_TYPE
             "last_content_hash": None,
             "created_at": now,
             "updated_at": now,
-        })
+        }
+        result = await db.sources.insert_one(source_doc)
+        source_doc["_id"] = result.inserted_id
 
-    await update.message.reply_text(
-        f"Канал {channel} добавлен!\n"
-        f"Бот начнёт мониторить новые посты и искать дедлайны."
-    )
-    logger.info(f"User {update.effective_user.id} added channel {channel}")
+    # Try to join immediately instead of waiting for scheduler
+    await update.message.reply_text("Подключаюсь к каналу...")
+    display_name = await _try_join_now(channel, source_doc)
+
+    if display_name != channel:
+        await update.message.reply_text(
+            f"Канал \"{display_name}\" подключён!\n"
+            f"Новые дедлайны будут появляться на дашборде."
+        )
+    else:
+        await update.message.reply_text(
+            f"Канал добавлен, подключение в процессе.\n"
+            f"Бот начнёт мониторить посты в ближайшие минуты."
+        )
+
+    logger.info(f"User {update.effective_user.id} added channel {channel} -> {display_name}")
 
 
 async def remove_channel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -102,15 +166,28 @@ async def remove_channel_command(update: Update, context: ContextTypes.DEFAULT_T
         return
 
     db = get_db()
-    result = await db.sources.update_one(
-        {"user_id": str(user["_id"]), "type": "telegram_channel", "identifier": channel},
-        {"$set": {"is_active": False, "updated_at": datetime.utcnow()}},
-    )
+    user_id = str(user["_id"])
 
-    if result.modified_count == 0:
-        await update.message.reply_text(f"Канал {channel} не найден в твоих источниках.")
-    else:
-        await update.message.reply_text(f"Канал {channel} удалён из мониторинга.")
+    # Try exact match first, then search by display_name
+    source = await db.sources.find_one({
+        "user_id": user_id, "type": "telegram_channel", "identifier": channel, "is_active": True,
+    })
+    if not source:
+        # Maybe user typed the display name
+        raw_name = " ".join(context.args).strip()
+        source = await db.sources.find_one({
+            "user_id": user_id, "type": "telegram_channel",
+            "display_name": {"$regex": re.escape(raw_name), "$options": "i"},
+            "is_active": True,
+        })
+
+    if not source:
+        await update.message.reply_text("Канал не найден в твоих источниках.\nПосмотри список: /list_channels")
+        return
+
+    await db.sources.delete_one({"_id": source["_id"]})
+    name = source.get("display_name", source["identifier"])
+    await update.message.reply_text(f"Канал \"{name}\" удалён.")
 
 
 async def list_channels_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -134,8 +211,9 @@ async def list_channels_command(update: Update, context: ContextTypes.DEFAULT_TY
 
     lines = ["Отслеживаемые каналы:\n"]
     for s in sources:
+        name = s.get("display_name", s["identifier"])
         status = "+" if s.get("joined") else "..."
-        lines.append(f"[{status}] {s['identifier']}")
+        lines.append(f"[{status}] {name}")
 
     lines.append("\n[+] = подключён, [...] = подключается")
     await update.message.reply_text("\n".join(lines))
