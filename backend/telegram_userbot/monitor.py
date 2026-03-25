@@ -124,6 +124,8 @@ async def _handle_message(event):
         channel_context=channel_context,
     )
 
+    logger.info(f"Haiku result: has_deadline={result.get('has_deadline')}, deadlines={len(result.get('deadlines', []))}, reasoning={result.get('reasoning', '')[:150]}")
+
     if not result.get("has_deadline"):
         return
 
