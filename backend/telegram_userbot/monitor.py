@@ -88,16 +88,32 @@ async def _handle_message(event):
         return
 
     channel_username = f"@{chat.username}" if chat.username else None
-    channel_id_str = str(chat.id)
+    channel_id = chat.id
 
     db = get_db()
 
-    match_values = [v for v in [channel_username, channel_id_str] if v]
-    sources = await db.sources.find({
+    # Match by @username, string ID, or channel_id field (for private channels joined via invite)
+    match_values = [v for v in [channel_username, str(channel_id)] if v]
+    sources_by_identifier = await db.sources.find({
         "type": "telegram_channel",
         "identifier": {"$in": match_values},
         "is_active": True,
     }).to_list(100)
+
+    sources_by_channel_id = await db.sources.find({
+        "type": "telegram_channel",
+        "channel_id": channel_id,
+        "is_active": True,
+    }).to_list(100)
+
+    # Merge and deduplicate
+    seen_ids = set()
+    sources = []
+    for s in sources_by_identifier + sources_by_channel_id:
+        sid = str(s["_id"])
+        if sid not in seen_ids:
+            seen_ids.add(sid)
+            sources.append(s)
 
     if not sources:
         return

@@ -12,12 +12,26 @@ logger = logging.getLogger(__name__)
 
 
 def _normalize_channel(text: str) -> str:
+    """Normalize channel input. Returns:
+    - 'invite:HASH' for private invite links (t.me/+HASH or t.me/joinchat/HASH)
+    - '@username' for public channels
+    """
     text = text.strip()
-    match = re.match(r'https?://t\.me/(?:joinchat/)?(\S+)', text)
+    # Handle t.me invite links: t.me/+HASH or t.me/joinchat/HASH
+    match = re.match(r'https?://t\.me/\+(\S+)', text)
+    if match:
+        return f"invite:{match.group(1)}"
+    match = re.match(r'https?://t\.me/joinchat/(\S+)', text)
+    if match:
+        return f"invite:{match.group(1)}"
+    # Handle t.me/username (public)
+    match = re.match(r'https?://t\.me/(\S+)', text)
     if match:
         return f"@{match.group(1)}"
+    # Handle raw invite hash
     if text.startswith('+'):
-        return text
+        return f"invite:{text[1:]}"
+    # Regular username
     if not text.startswith('@'):
         text = f"@{text}"
     return text
