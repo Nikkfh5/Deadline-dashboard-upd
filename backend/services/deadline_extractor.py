@@ -61,13 +61,16 @@ async def save_extracted_deadlines(
 
         task_name = deadline_data.get("task_name", "Unknown")
         subject = deadline_data.get("subject", "Unknown")
+        details = deadline_data.get("details", "")
+        # Combine task name with details for richer dashboard display
+        task_display = f"{task_name} | {details}" if details else task_name
 
         for user_id in user_ids:
             docs_to_insert.append({
                 "id": str(uuid.uuid4()),
                 "user_id": user_id,
                 "name": subject,
-                "task": task_name,
+                "task": task_display,
                 "due_date": due_date,
                 "created_at": now,
                 "updated_at": now,
