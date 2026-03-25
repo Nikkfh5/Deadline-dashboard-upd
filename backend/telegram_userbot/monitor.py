@@ -113,14 +113,14 @@ async def _handle_message(event):
         logger.debug(f"No sources found for channel {chat.title} (id={channel_id}, username={channel_username})")
         return
 
-    logger.info(f"Processing message from {channel_username or channel_id_str}: {text[:100]}...")
+    logger.info(f"Processing message from {channel_username or str(channel_id)}: {text[:100]}...")
 
     # Get channel context for better subject detection
     channel_context = await _get_channel_context(chat)
 
     result = await _analyzer.analyze_post(
         text,
-        channel_name=chat.title or channel_username or channel_id_str,
+        channel_name=chat.title or channel_username or str(channel_id),
         channel_context=channel_context,
     )
 
@@ -143,7 +143,7 @@ async def _handle_message(event):
     )
 
     if count > 0:
-        logger.info(f"Added {count} deadlines from {channel_username or channel_id_str}")
+        logger.info(f"Added {count} deadlines from {channel_username or str(channel_id)}")
 
         source_ids = [s["_id"] for s in sources]
         await db.sources.update_many(
@@ -152,4 +152,4 @@ async def _handle_message(event):
         )
 
         from services.notifications import notify_new_deadlines
-        await notify_new_deadlines(user_ids, extracted, chat.title or channel_username or channel_id_str, count)
+        await notify_new_deadlines(user_ids, extracted, chat.title or channel_username or str(channel_id), count)
