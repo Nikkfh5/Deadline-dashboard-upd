@@ -34,6 +34,11 @@ async def start_userbot() -> Optional[TelegramClient]:
     from telegram_userbot.monitor import setup_handlers
     setup_handlers(_client)
 
+    # Explicitly tell Telethon to start receiving updates
+    # Without this, event handlers won't fire when running inside uvicorn
+    await _client.catch_up()
+    logger.info("Telethon catch_up complete, event handlers active")
+
     return _client
 
 
