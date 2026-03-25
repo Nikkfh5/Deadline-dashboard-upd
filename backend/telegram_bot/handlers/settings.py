@@ -1,6 +1,7 @@
-import json
 import logging
-from datetime import datetime
+import string
+import random
+from datetime import datetime, timedelta
 
 from telegram import Update
 from telegram.ext import ContextTypes
@@ -11,66 +12,87 @@ from telegram_bot.utils import get_current_user
 logger = logging.getLogger(__name__)
 
 
-async def export_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Export all user sources as JSON for backup/sharing."""
+def _generate_code(length=6) -> str:
+    chars = string.ascii_uppercase + string.digits
+    return "".join(random.choices(chars, k=length))
+
+
+async def share_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """/share — generate a short code that others can use with /join."""
     user = await get_current_user(update)
     if not user:
-        return
-
-    db = get_db()
-    sources = await db.sources.find({
-        "user_id": str(user["_id"]),
-        "is_active": True,
-    }).to_list(200)
-
-    export_data = {
-        "channels": [],
-        "wikis": [],
-    }
-    for s in sources:
-        if s["type"] == "telegram_channel":
-            export_data["channels"].append(s["identifier"])
-        elif s["type"] == "wiki_page":
-            export_data["wikis"].append(s["identifier"])
-
-    text = json.dumps(export_data, ensure_ascii=False, indent=2)
-
-    await update.message.reply_text(
-        f"Твои настройки:\n\n```\n{text}\n```\n\n"
-        f"Скопируй и отправь другому человеку, "
-        f"он сможет импортировать через /import",
-        parse_mode="Markdown",
-    )
-
-
-async def import_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Import sources from JSON. Usage: /import {json}"""
-    user = await get_current_user(update)
-    if not user:
-        return
-
-    # Get text after /import
-    raw = update.message.text
-    json_start = raw.find("{")
-    if json_start == -1:
-        await update.message.reply_text(
-            "Отправь JSON после команды:\n"
-            '/import {"channels": ["@channel1"], "wikis": ["http://wiki.cs.hse.ru/..."]}'
-        )
-        return
-
-    try:
-        data = json.loads(raw[json_start:])
-    except json.JSONDecodeError:
-        await update.message.reply_text("Невалидный JSON. Проверь формат.")
         return
 
     db = get_db()
     user_id = str(user["_id"])
+
+    sources = await db.sources.find({
+        "user_id": user_id,
+        "is_active": True,
+    }).to_list(200)
+
+    if not sources:
+        await update.message.reply_text("У тебя нет источников для шаринга. Сначала добавь каналы или wiki.")
+        return
+
+    channels = [s["identifier"] for s in sources if s["type"] == "telegram_channel"]
+    wikis = [s["identifier"] for s in sources if s["type"] == "wiki_page"]
+
+    code = _generate_code()
+    expires_at = datetime.utcnow() + timedelta(days=7)
+
+    await db.share_codes.insert_one({
+        "code": code,
+        "created_by": user_id,
+        "channels": channels,
+        "wikis": wikis,
+        "expires_at": expires_at,
+        "created_at": datetime.utcnow(),
+    })
+
+    summary_lines = []
+    if channels:
+        summary_lines.append(f"Каналы: {', '.join(channels)}")
+    if wikis:
+        summary_lines.append(f"Wiki: {len(wikis)} шт.")
+    summary = "\n".join(summary_lines)
+
+    await update.message.reply_text(
+        f"Код для одногруппников:\n\n"
+        f"  /join {code}\n\n"
+        f"Что включено:\n{summary}\n\n"
+        f"Код действует 7 дней."
+    )
+    logger.info(f"User {update.effective_user.id} created share code {code}")
+
+
+async def join_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """/join ABCD — import sources from a share code."""
+    user = await get_current_user(update)
+    if not user:
+        return
+
+    if not context.args:
+        await update.message.reply_text("Укажи код: /join ABCDEF")
+        return
+
+    code = context.args[0].strip().upper()
+    db = get_db()
+
+    share = await db.share_codes.find_one({
+        "code": code,
+        "expires_at": {"$gte": datetime.utcnow()},
+    })
+
+    if not share:
+        await update.message.reply_text("Код не найден или истёк. Попроси одногруппника сгенерировать новый: /share")
+        return
+
+    user_id = str(user["_id"])
     now = datetime.utcnow()
     added = 0
 
-    for channel in data.get("channels", []):
+    for channel in share.get("channels", []):
         existing = await db.sources.find_one({
             "user_id": user_id, "type": "telegram_channel", "identifier": channel,
         })
@@ -92,7 +114,7 @@ async def import_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             })
         added += 1
 
-    for url in data.get("wikis", []):
+    for url in share.get("wikis", []):
         existing = await db.sources.find_one({
             "user_id": user_id, "type": "wiki_page", "identifier": url,
         })
@@ -115,5 +137,5 @@ async def import_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             })
         added += 1
 
-    await update.message.reply_text(f"Импортировано {added} источников.")
-    logger.info(f"User {update.effective_user.id} imported {added} sources")
+    await update.message.reply_text(f"Добавлено {added} источников! Дедлайны скоро появятся на дашборде.")
+    logger.info(f"User {update.effective_user.id} joined with code {code}, added {added} sources")

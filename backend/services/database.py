@@ -30,6 +30,8 @@ async def init_db() -> AsyncIOMotorDatabase:
     await _db.deadlines.create_index("id", unique=True)
     await _db.deadlines.create_index([("user_id", 1), ("name", 1), ("task", 1), ("due_date", 1)])
     await _db.parsed_posts.create_index([("source_id", 1), ("content_hash", 1)], unique=True)
+    await _db.share_codes.create_index("code", unique=True)
+    await _db.share_codes.create_index("expires_at", expireAfterSeconds=0)
 
     logger.info(f"Connected to MongoDB: {db_name}")
     return _db

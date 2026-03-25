@@ -53,8 +53,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"/list_wikis — список wiki\n"
         f"/my_deadlines — ближайшие дедлайны\n"
         f"/dashboard — ссылка на дашборд\n"
-        f"/export — экспорт настроек\n"
-        f"/import — импорт настроек\n"
+        f"/share — поделиться источниками с одногруппниками\n"
+        f"/join КОД — подключить чужие источники\n"
         f"/help — помощь"
     )
 
@@ -73,9 +73,9 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Дедлайны:\n"
         "/my_deadlines — ближайшие дедлайны\n"
         "/dashboard — ссылка на дашборд\n\n"
-        "Настройки:\n"
-        "/export — экспорт всех источников в JSON\n"
-        "/import {json} — импорт источников из JSON\n\n"
+        "Шаринг:\n"
+        "/share — сгенерировать код для одногруппников\n"
+        "/join КОД — подключить источники по коду\n\n"
         "Бот автоматически парсит новые посты и обновления wiki, "
         "используя ИИ для извлечения информации о дедлайнах."
     )
