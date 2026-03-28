@@ -111,7 +111,8 @@ async def _join_by_invite(client, db, source, invite_hash):
                 update_fields["channel_id"] = chat.id
             await db.sources.update_one({"_id": source["_id"]}, {"$set": update_fields})
             logger.info(f"Already in private channel: {title}")
-        except Exception:
+        except Exception as e:
+            logger.debug(f"CheckChatInvite failed for {invite_hash[:8]}...: {e}")
             await db.sources.update_one(
                 {"_id": source["_id"]},
                 {"$set": {"joined": True, "updated_at": datetime.utcnow()}},
@@ -132,7 +133,7 @@ async def _mark_joined(db, source, client, identifier):
         if not identifier.startswith("invite:"):
             entity = await client.get_entity(identifier.lstrip("@"))
             update_fields["display_name"] = getattr(entity, "title", identifier)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Failed to get entity for {identifier}: {e}")
     await db.sources.update_one({"_id": source["_id"]}, {"$set": update_fields})
     logger.info(f"Already in channel: {identifier}")

@@ -46,6 +46,19 @@ async def start_bot():
     await _app.initialize()
     await _app.start()
     await _app.updater.start_polling(drop_pending_updates=True)
+
+    await _app.bot.set_my_commands([
+        ("add", "Добавить дедлайн"),
+        ("my_deadlines", "Мои дедлайны"),
+        ("add_channel", "Добавить TG канал"),
+        ("add_wiki", "Добавить wiki"),
+        ("remove_channel", "Удалить канал"),
+        ("remove_wiki", "Удалить wiki"),
+        ("dashboard", "Открыть дашборд"),
+        ("share", "Поделиться источниками"),
+        ("help", "Помощь"),
+    ])
+
     logger.info("Telegram bot started")
 
 

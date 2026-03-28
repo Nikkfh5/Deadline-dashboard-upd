@@ -35,8 +35,8 @@ async def notify_new_deadlines(user_ids: List[str], deadlines: List[dict], sourc
                     from datetime import datetime
                     dt = datetime.fromisoformat(due)
                     due = dt.strftime("%d.%m %H:%M")
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Date format error: {e}")
             lines.append(f"  • {d.get('task_name', '?')} — до {due}")
 
         if len(deadlines) > 10:

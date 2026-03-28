@@ -94,6 +94,24 @@ class StatusCheckCreate(BaseModel):
 async def root():
     return {"message": "Hello World"}
 
+@api_router.get("/health")
+async def health_check():
+    from services.database import get_db
+    from telegram_bot.bot import get_bot_app
+    health = {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "services": {}}
+
+    try:
+        db = get_db()
+        await db.command("ping")
+        health["services"]["mongodb"] = "ok"
+    except Exception:
+        health["services"]["mongodb"] = "error"
+        health["status"] = "degraded"
+
+    health["services"]["telegram_bot"] = "running" if get_bot_app() else "stopped"
+
+    return health
+
 @api_router.post("/status", response_model=StatusCheck)
 async def create_status_check(input: StatusCheckCreate):
     from services.database import get_db

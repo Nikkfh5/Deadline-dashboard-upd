@@ -1,24 +1,43 @@
 import logging
+import time
+from typing import Optional
+
 from bson import ObjectId
 from telethon import TelegramClient, events
 from telethon.tl.types import Channel
 
 from services.database import get_db
-from services.haiku_analyzer import HaikuAnalyzer
+from services.haiku_analyzer import get_analyzer
 from services.deadline_extractor import save_extracted_deadlines
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-_analyzer: HaikuAnalyzer = None
 _client: TelegramClient = None
-# Cache: channel_id -> {"subject": ..., "context": ...}
+# Cache: channel_id -> {"context": str, "ts": float}
 _channel_profiles: dict = {}
+_CACHE_TTL = 3600  # 1 hour
+
+
+def _get_cached_profile(channel_id: int) -> Optional[str]:
+    entry = _channel_profiles.get(channel_id)
+    if entry and (time.time() - entry["ts"]) < _CACHE_TTL:
+        return entry["context"]
+    return None
+
+
+def _set_cached_profile(channel_id: int, context: str):
+    _channel_profiles[channel_id] = {"context": context, "ts": time.time()}
+    # Evict old entries if cache too large
+    if len(_channel_profiles) > 500:
+        cutoff = time.time() - _CACHE_TTL
+        expired = [k for k, v in _channel_profiles.items() if v["ts"] < cutoff]
+        for k in expired:
+            del _channel_profiles[k]
 
 
 def setup_handlers(client: TelegramClient):
-    global _analyzer, _client
-    _analyzer = HaikuAnalyzer()
+    global _client
     _client = client
 
     @client.on(events.NewMessage())
@@ -34,15 +53,16 @@ async def _get_channel_context(chat) -> str:
     Cached per channel_id to avoid repeated fetches."""
     channel_id = chat.id
 
-    # Check in-memory cache
-    if channel_id in _channel_profiles:
-        return _channel_profiles[channel_id]
+    # Check in-memory cache with TTL
+    cached_profile = _get_cached_profile(channel_id)
+    if cached_profile is not None:
+        return cached_profile
 
     # Check DB cache
     db = get_db()
     cached = await db.channel_profiles.find_one({"channel_id": channel_id})
     if cached:
-        _channel_profiles[channel_id] = cached["context"]
+        _set_cached_profile(channel_id, cached["context"])
         return cached["context"]
 
     # Fetch last 15 messages to build context
@@ -70,7 +90,7 @@ async def _get_channel_context(chat) -> str:
             }},
             upsert=True,
         )
-        _channel_profiles[channel_id] = context
+        _set_cached_profile(channel_id, context)
         logger.info(f"Built channel context for {chat.title} ({len(texts)} messages)")
         return context
     except Exception as e:
@@ -118,7 +138,7 @@ async def _handle_message(event):
     # Get channel context for better subject detection
     channel_context = await _get_channel_context(chat)
 
-    result = await _analyzer.analyze_post(
+    result = await get_analyzer().analyze_post(
         text,
         channel_name=chat.title or channel_username or str(channel_id),
         channel_context=channel_context,

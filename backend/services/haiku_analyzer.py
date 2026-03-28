@@ -1,4 +1,5 @@
 import anthropic
+import asyncio
 import json
 import logging
 import os
@@ -105,6 +106,20 @@ class HaikuAnalyzer:
             self.client = None
             logger.warning("ANTHROPIC_API_KEY not set, HaikuAnalyzer disabled")
 
+    async def _api_call(self, **kwargs) -> str:
+        """Call Anthropic API with retry and backoff."""
+        last_error = None
+        for attempt in range(3):
+            try:
+                response = await self.client.messages.create(**kwargs)
+                return response.content[0].text.strip()
+            except anthropic.APIError as e:
+                last_error = e
+                if attempt < 2:
+                    await asyncio.sleep(2 ** attempt)
+                    logger.warning(f"Haiku API retry {attempt + 1}/3: {e}")
+        raise last_error
+
     async def analyze_post(self, text: str, channel_name: str = "", channel_context: str = "") -> dict:
         if not self.client:
             return {"has_deadline": False, "deadlines": [], "reasoning": "API key not configured"}
@@ -128,18 +143,14 @@ class HaikuAnalyzer:
         )
 
         try:
-            response = await self.client.messages.create(
+            raw = await self._api_call(
                 model="claude-haiku-4-5-20251001",
                 max_tokens=1024,
                 messages=[{"role": "user", "content": prompt}],
             )
-            raw = response.content[0].text.strip()
             return _extract_json(raw)
-        except (json.JSONDecodeError, ValueError) as e:
-            logger.error(f"Failed to parse Haiku response as JSON: {raw[:300]}")
-            return {"has_deadline": False, "deadlines": [], "reasoning": "JSON parse error"}
-        except Exception as e:
-            logger.error(f"Haiku API error: {e}")
+        except (anthropic.APIError, json.JSONDecodeError, ValueError) as e:
+            logger.error(f"Haiku analyze_post error: {e}")
             return {"has_deadline": False, "deadlines": [], "reasoning": str(e)}
 
     async def parse_date(self, user_text: str) -> Optional[datetime]:
@@ -151,17 +162,16 @@ class HaikuAnalyzer:
         prompt = DATE_PARSE_PROMPT.format(today=today, user_text=user_text)
 
         try:
-            response = await self.client.messages.create(
+            raw = await self._api_call(
                 model="claude-haiku-4-5-20251001",
                 max_tokens=256,
                 messages=[{"role": "user", "content": prompt}],
             )
-            raw = response.content[0].text.strip()
             data = _extract_json(raw)
             if data.get("parsed") and data.get("date"):
                 dt = datetime.fromisoformat(data["date"])
                 return dt - timedelta(hours=3)
-        except Exception as e:
+        except (anthropic.APIError, json.JSONDecodeError, ValueError) as e:
             logger.error(f"Haiku date parse error: {e}")
         return None
 
@@ -179,15 +189,14 @@ class HaikuAnalyzer:
         )
 
         try:
-            response = await self.client.messages.create(
+            raw = await self._api_call(
                 model="claude-haiku-4-5-20251001",
                 max_tokens=2048,
                 messages=[{"role": "user", "content": prompt}],
             )
-            raw = response.content[0].text.strip()
             data = _extract_json(raw)
             return data.get("deadlines", [])
-        except Exception as e:
+        except (anthropic.APIError, json.JSONDecodeError, ValueError) as e:
             logger.error(f"Haiku wiki analysis error: {e}")
             return []
 
@@ -207,3 +216,13 @@ def _get_academic_year() -> str:
     if now.month >= 9:
         return f"{now.year}/{now.year + 1}"
     return f"{now.year - 1}/{now.year}"
+
+
+_instance: Optional[HaikuAnalyzer] = None
+
+
+def get_analyzer() -> HaikuAnalyzer:
+    global _instance
+    if _instance is None:
+        _instance = HaikuAnalyzer()
+    return _instance

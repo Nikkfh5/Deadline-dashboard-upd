@@ -30,10 +30,10 @@ def _deadline_from_doc(doc: dict) -> Deadline:
 
 
 @router.get("", response_model=List[Deadline])
-async def get_deadlines(token: str = Query(...)):
+async def get_deadlines(token: str = Query(...), skip: int = Query(0, ge=0), limit: int = Query(100, ge=1, le=500)):
     user = await get_user_by_token(token)
     db = get_db()
-    docs = await db.deadlines.find({"user_id": str(user["_id"])}).to_list(1000)
+    docs = await db.deadlines.find({"user_id": str(user["_id"])}).skip(skip).limit(limit).to_list(limit)
     return [_deadline_from_doc(doc) for doc in docs]
 
 

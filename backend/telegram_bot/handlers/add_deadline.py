@@ -1,6 +1,7 @@
 import logging
 import uuid
 from datetime import datetime, timedelta
+from typing import Optional
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -13,10 +14,8 @@ from telegram.ext import (
 )
 
 from services.database import get_db
-from services.haiku_analyzer import HaikuAnalyzer
+from services.haiku_analyzer import get_analyzer
 from telegram_bot.utils import get_current_user
-
-_analyzer = HaikuAnalyzer()
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +65,7 @@ def _format_preview(data: dict) -> str:
     )
 
 
-def _parse_date(text: str) -> datetime | None:
+def _parse_date(text: str) -> Optional[datetime]:
     """Parse date from user text input. Supports common formats."""
     text = text.strip()
     now = datetime.utcnow() + timedelta(hours=3)  # Moscow
@@ -158,7 +157,7 @@ async def date_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     # Fallback to Haiku for natural language ("в пятницу", "через 3 дня", etc.)
     if not parsed:
-        parsed = await _analyzer.parse_date(text)
+        parsed = await get_analyzer().parse_date(text)
 
     if not parsed:
         await update.message.reply_text(

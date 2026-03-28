@@ -184,8 +184,8 @@ async def _process_channel_link(update, context, raw_text: str, user: dict):
                     f"Канал добавлен, подключение в процессе.\n"
                     f"Бот начнёт мониторить посты в ближайшие минуты."
                 )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"TG message send failed: {e}")
         logger.info(f"User {update.effective_user.id} added channel {channel} -> {display_name}")
 
     await update.message.reply_text("Канал добавлен! Подключаюсь...")
