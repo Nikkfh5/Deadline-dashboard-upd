@@ -21,58 +21,12 @@ _analyzer = HaikuAnalyzer()
 logger = logging.getLogger(__name__)
 
 # Conversation states
-NAME, TASK, DATE_CHOICE, DATE_INPUT, CONFIRM = range(5)
+NAME, TASK, DATE_INPUT, CONFIRM = range(4)
 
-# Callback data prefixes
-DATE_PREFIX = "date:"
+# Callback data
 CONFIRM_SAVE = "confirm:save"
 CONFIRM_CANCEL = "confirm:cancel"
 CONFIRM_RESTART = "confirm:restart"
-
-
-def _date_keyboard() -> InlineKeyboardMarkup:
-    """Quick date selection keyboard."""
-    now = datetime.utcnow() + timedelta(hours=3)  # Moscow time
-
-    buttons = [
-        [
-            InlineKeyboardButton(
-                f"Завтра ({(now + timedelta(days=1)).strftime('%d.%m')})",
-                callback_data=f"{DATE_PREFIX}1",
-            ),
-            InlineKeyboardButton(
-                f"Послезавтра ({(now + timedelta(days=2)).strftime('%d.%m')})",
-                callback_data=f"{DATE_PREFIX}2",
-            ),
-        ],
-        [
-            InlineKeyboardButton(
-                f"Через 3 дня ({(now + timedelta(days=3)).strftime('%d.%m')})",
-                callback_data=f"{DATE_PREFIX}3",
-            ),
-            InlineKeyboardButton(
-                f"Через неделю ({(now + timedelta(days=7)).strftime('%d.%m')})",
-                callback_data=f"{DATE_PREFIX}7",
-            ),
-        ],
-        [
-            InlineKeyboardButton(
-                f"Через 2 недели ({(now + timedelta(days=14)).strftime('%d.%m')})",
-                callback_data=f"{DATE_PREFIX}14",
-            ),
-            InlineKeyboardButton(
-                f"Через месяц ({(now + timedelta(days=30)).strftime('%d.%m')})",
-                callback_data=f"{DATE_PREFIX}30",
-            ),
-        ],
-        [
-            InlineKeyboardButton(
-                "Ввести дату вручную",
-                callback_data=f"{DATE_PREFIX}custom",
-            ),
-        ],
-    ]
-    return InlineKeyboardMarkup(buttons)
 
 
 def _confirm_keyboard() -> InlineKeyboardMarkup:
@@ -185,45 +139,14 @@ async def task_received(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
 
     context.user_data["add_deadline"]["task"] = text
     await update.message.reply_text(
-        "Выбери дату дедлайна:",
-        reply_markup=_date_keyboard(),
+        "Когда дедлайн? Напиши дату, например:\n"
+        "  15.04.2026 23:59\n"
+        "  15.04\n"
+        "  завтра\n"
+        "  в пятницу\n"
+        "  через 3 дня"
     )
-    return DATE_CHOICE
-
-
-async def date_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Step 3: date selected via inline button."""
-    query = update.callback_query
-    await query.answer()
-
-    value = query.data.removeprefix(DATE_PREFIX)
-
-    if value == "custom":
-        await query.edit_message_text(
-            "Введи дату в формате:\n"
-            "  дд.мм.гггг чч:мм\n"
-            "  дд.мм.гггг\n"
-            "  дд.мм чч:мм\n"
-            "  дд.мм\n\n"
-            "Если не указать время — будет 23:59.\n"
-            "Если не указать год — текущий."
-        )
-        return DATE_INPUT
-
-    days = int(value)
-    # Moscow 23:59 → UTC 20:59
-    moscow_now = datetime.utcnow() + timedelta(hours=3)
-    target = (moscow_now + timedelta(days=days)).replace(hour=23, minute=59, second=0, microsecond=0)
-    due_utc = target - timedelta(hours=3)
-
-    context.user_data["add_deadline"]["due_date"] = due_utc
-
-    data = context.user_data["add_deadline"]
-    await query.edit_message_text(
-        _format_preview(data),
-        reply_markup=_confirm_keyboard(),
-    )
-    return CONFIRM
+    return DATE_INPUT
 
 
 async def date_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -326,9 +249,6 @@ def build_add_deadline_conversation() -> ConversationHandler:
         states={
             NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, subject_received)],
             TASK: [MessageHandler(filters.TEXT & ~filters.COMMAND, task_received)],
-            DATE_CHOICE: [
-                CallbackQueryHandler(date_button, pattern=f"^{DATE_PREFIX}"),
-            ],
             DATE_INPUT: [MessageHandler(filters.TEXT & ~filters.COMMAND, date_text)],
             CONFIRM: [
                 CallbackQueryHandler(confirm_button, pattern="^confirm:"),
