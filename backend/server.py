@@ -3,6 +3,7 @@ from fastapi import FastAPI, APIRouter
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 import os
+import json
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field
@@ -14,11 +15,29 @@ from datetime import datetime
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+
+# Structured JSON logging
+class JSONFormatter(logging.Formatter):
+    def format(self, record):
+        log = {
+            "ts": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S"),
+            "level": record.levelname,
+            "logger": record.name,
+            "msg": record.getMessage(),
+        }
+        if record.exc_info and record.exc_info[0]:
+            log["exception"] = self.formatException(record.exc_info)
+        ctx = getattr(record, "ctx", None)
+        if ctx:
+            log["ctx"] = ctx
+        return json.dumps(log, ensure_ascii=False)
+
+
+handler = logging.StreamHandler()
+handler.setFormatter(JSONFormatter())
+logging.root.handlers = [handler]
+logging.root.setLevel(logging.INFO)
+
 logger = logging.getLogger(__name__)
 
 
