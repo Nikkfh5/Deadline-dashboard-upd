@@ -103,6 +103,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "check_interval_minutes": 60,
                 "timezone": "Europe/Moscow",
                 "notifications_enabled": True,
+                "reminder_minutes": [1440, 60],
             },
             "created_at": now,
             "updated_at": now,

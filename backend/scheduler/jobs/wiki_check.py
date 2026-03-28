@@ -5,21 +5,18 @@ from datetime import datetime
 
 from services.database import get_db
 from services.wiki_parser import WikiParser
-from services.haiku_analyzer import HaikuAnalyzer
+from services.haiku_analyzer import get_analyzer
 from services.deadline_extractor import save_extracted_deadlines
 
 logger = logging.getLogger(__name__)
 
-# Singleton instances
-_haiku = None
 _parser = None
 
 
 def _get_parser():
-    global _haiku, _parser
+    global _parser
     if _parser is None:
-        _haiku = HaikuAnalyzer()
-        _parser = WikiParser(haiku_analyzer=_haiku)
+        _parser = WikiParser(haiku_analyzer=get_analyzer())
     return _parser
 
 

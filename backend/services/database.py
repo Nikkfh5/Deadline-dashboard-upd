@@ -32,6 +32,8 @@ async def init_db() -> AsyncIOMotorDatabase:
     await _db.parsed_posts.create_index([("source_id", 1), ("content_hash", 1)], unique=True)
     await _db.share_codes.create_index("code", unique=True)
     await _db.share_codes.create_index("expires_at", expireAfterSeconds=0)
+    await _db.reminders_sent.create_index("reminder_key", unique=True)
+    await _db.reminders_sent.create_index("sent_at", expireAfterSeconds=86400 * 7)  # auto-delete after 7 days
 
     logger.info(f"Connected to MongoDB: {db_name}")
     return _db

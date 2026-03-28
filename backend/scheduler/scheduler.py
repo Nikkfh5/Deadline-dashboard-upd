@@ -4,6 +4,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 
 from scheduler.jobs.wiki_check import wiki_check_job
 from scheduler.jobs.channel_check import channel_join_job
+from scheduler.jobs.reminders import reminders_job
 
 logger = logging.getLogger(__name__)
 
@@ -30,8 +31,16 @@ def setup_scheduler():
         max_instances=1,
     )
 
+    _scheduler.add_job(
+        reminders_job,
+        IntervalTrigger(minutes=10),
+        id="reminders",
+        replace_existing=True,
+        max_instances=1,
+    )
+
     _scheduler.start()
-    logger.info("Scheduler started with wiki_check (60min) and channel_join (5min) jobs")
+    logger.info("Scheduler started with wiki_check (60min), channel_join (5min), reminders (10min) jobs")
 
 
 def shutdown_scheduler():
