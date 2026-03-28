@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, Plus, X, Edit3, MoreVertical, Repeat, ChevronDown, ChevronUp } from 'lucide-react';
+import { Clock, Plus, X, Edit3, MoreVertical, Repeat, ChevronDown, ChevronUp, Moon, Sun } from 'lucide-react';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
 import { Input } from './ui/input';
@@ -50,6 +50,16 @@ const DeadlineTracker = () => {
   });
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isTemporaryCollapsed, setIsTemporaryCollapsed] = useState(true);
+  const [darkMode, setDarkMode] = useState(() => {
+    const saved = localStorage.getItem('darkMode');
+    if (saved !== null) return saved === 'true';
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  });
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', darkMode);
+    localStorage.setItem('darkMode', darkMode);
+  }, [darkMode]);
 
   // Helper function to migrate old data structure to new format
   const migrateDeadline = (deadline) => {
@@ -561,11 +571,22 @@ const DeadlineTracker = () => {
 
   return (
     <TooltipProvider>
-      <div className="min-h-screen bg-slate-50 p-6">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 p-6 transition-colors">
         <div className="max-w-7xl mx-auto">
           {/* Header */}
-          <div className="text-center mb-12">
-            <h1 className="text-4xl font-bold text-slate-800 tracking-wide">DEADLINES</h1>
+          <div className="flex justify-between items-center mb-12">
+            <div className="flex-1" />
+            <h1 className="text-4xl font-bold text-slate-800 dark:text-slate-100 tracking-wide">DEADLINES</h1>
+            <div className="flex-1 flex justify-end">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setDarkMode(!darkMode)}
+                className="text-slate-600 dark:text-slate-300"
+              >
+                {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+              </Button>
+            </div>
           </div>
 
           {/* Add Deadline Button */}
@@ -574,7 +595,7 @@ const DeadlineTracker = () => {
               <DialogTrigger asChild>
                 <Button 
                   onClick={openAddModal}
-                  className="bg-slate-700 hover:bg-slate-800 text-white px-6 py-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 hover:scale-105"
+                  className="bg-slate-700 hover:bg-slate-800 dark:bg-slate-600 dark:hover:bg-slate-500 text-white px-6 py-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 hover:scale-105"
                 >
                   <Plus className="w-5 h-5 mr-2" />
                   Add Deadline
@@ -582,7 +603,7 @@ const DeadlineTracker = () => {
               </DialogTrigger>
               <DialogContent className="max-w-md">
                 <DialogHeader>
-                  <DialogTitle className="text-slate-800">
+                  <DialogTitle className="text-slate-800 dark:text-slate-100">
                     {editingDeadline ? 'Edit Deadline' : 'Add New Deadline'}
                   </DialogTitle>
                 </DialogHeader>
