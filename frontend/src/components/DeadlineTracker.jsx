@@ -51,6 +51,8 @@ const DeadlineTracker = () => {
   });
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isTemporaryCollapsed, setIsTemporaryCollapsed] = useState(true);
+  const [statsKey, setStatsKey] = useState(0);
+  const refreshStats = () => setStatsKey(k => k + 1);
   const [darkMode, setDarkMode] = useState(() => {
     const saved = localStorage.getItem('darkMode');
     if (saved !== null) return saved === 'true';
@@ -344,7 +346,7 @@ const DeadlineTracker = () => {
           is_recurring: updatedDeadline.isRecurring,
           interval_days: updatedDeadline.intervalDays,
           last_started_at: updatedDeadline.lastStartedAt,
-        });
+        }).then(refreshStats);
       }
     } else {
       // Add new deadline
@@ -369,7 +371,7 @@ const DeadlineTracker = () => {
           is_recurring: deadline.isRecurring,
           interval_days: deadline.intervalDays,
           last_started_at: deadline.lastStartedAt,
-        });
+        }).then(refreshStats);
       }
     }
 
@@ -381,7 +383,7 @@ const DeadlineTracker = () => {
   const handleDeleteDeadline = (id) => {
     setDeadlines(prev => prev.filter(d => d.id !== id));
     if (hasToken()) {
-      deleteDeadlineApi(id);
+      deleteDeadlineApi(id).then(refreshStats);
     }
   };
 
@@ -771,7 +773,7 @@ const DeadlineTracker = () => {
           )}
 
           {/* Statistics */}
-          <StatsPanel />
+          <StatsPanel refreshKey={statsKey} />
         </div>
       </div>
     </TooltipProvider>

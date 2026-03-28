@@ -6,7 +6,7 @@ import { fetchStats, hasToken } from '../services/api';
 const SOURCE_LABELS = { manual: 'Вручную', telegram: 'Telegram', wiki: 'Wiki' };
 const SOURCE_COLORS = { manual: '#6366f1', telegram: '#3b82f6', wiki: '#10b981' };
 
-const StatsPanel = () => {
+const StatsPanel = ({ refreshKey = 0 }) => {
   const [stats, setStats] = useState(null);
 
   useEffect(() => {
@@ -18,7 +18,7 @@ const StatsPanel = () => {
     load();
     const interval = setInterval(load, 60000);
     return () => clearInterval(interval);
-  }, []);
+  }, [refreshKey]);
 
   if (!stats) return null;
 
