@@ -403,7 +403,7 @@ const DeadlineTracker = () => {
             stroke="currentColor"
             strokeWidth="2"
             fill="transparent"
-            className="text-slate-200"
+            className="text-slate-200 dark:text-slate-700"
           />
           {/* Progress circle */}
           <circle
@@ -442,7 +442,7 @@ const DeadlineTracker = () => {
     return (
       <Card 
         key={deadline.id} 
-        className="relative p-6 bg-white shadow-md hover:shadow-xl hover:ring-2 hover:ring-slate-300 hover:ring-offset-2 transition-all duration-200 hover:scale-105 cursor-pointer border border-slate-200"
+        className="relative p-6 bg-white dark:bg-slate-800 shadow-md hover:shadow-xl hover:ring-2 hover:ring-slate-300 dark:hover:ring-slate-600 hover:ring-offset-2 dark:hover:ring-offset-slate-900 transition-all duration-200 hover:scale-105 cursor-pointer border border-slate-200 dark:border-slate-700"
         onClick={() => openEditModal(deadline)}
       >
         {/* 3-dot menu */}
@@ -494,12 +494,12 @@ const DeadlineTracker = () => {
         {/* Badge for deadline type */}
         <div className="absolute -top-2 -left-2">
           {deadline.isRecurring && !timeLeft.isOverdue && (
-            <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-300 text-xs px-2 py-1">
+            <Badge variant="outline" className="bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 text-xs px-2 py-1">
               every {deadline.intervalDays} days
             </Badge>
           )}
           {showRepeatButton && (
-            <Badge variant="outline" className="bg-orange-100 text-orange-700 border-orange-300 text-xs px-2 py-1">
+            <Badge variant="outline" className="bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300 border-orange-300 dark:border-orange-700 text-xs px-2 py-1">
               repeat
             </Badge>
           )}
@@ -513,16 +513,16 @@ const DeadlineTracker = () => {
             isOverdue={timeLeft.isOverdue}
             isPulsing={isPulsing}
           >
-            <Clock className="w-6 h-6 text-slate-600 mb-1" />
+            <Clock className="w-6 h-6 text-slate-600 dark:text-slate-400 mb-1" />
             <div className="text-center">
-              <div className="text-xs font-mono text-slate-700">
+              <div className="text-xs font-mono text-slate-700 dark:text-slate-300">
                 {timeLeft.isOverdue ? (
                   <span className="text-red-600 font-semibold">OVERDUE</span>
                 ) : (
                   `${timeLeft.days}d ${timeLeft.hours}h`
                 )}
               </div>
-              <div className="text-xs font-mono text-slate-500">
+              <div className="text-xs font-mono text-slate-500 dark:text-slate-400">
                 {timeLeft.isOverdue ? '' : `${timeLeft.minutes}m ${timeLeft.seconds}s`}
               </div>
             </div>
@@ -530,11 +530,11 @@ const DeadlineTracker = () => {
 
           {/* Name and Task */}
           <div className="text-center">
-            <h3 className="font-semibold text-slate-800 text-lg">{deadline.name}</h3>
+            <h3 className="font-semibold text-slate-800 dark:text-slate-100 text-lg">{deadline.name}</h3>
             {deadline.task && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <p className="text-xs text-slate-600 mt-1 cursor-help">
+                  <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 cursor-help">
                     {truncateText(deadline.task)}
                   </p>
                 </TooltipTrigger>
@@ -543,7 +543,7 @@ const DeadlineTracker = () => {
                 </TooltipContent>
               </Tooltip>
             )}
-            <p className="text-xs text-slate-500 mt-1">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
               {new Date(deadline.dueDate).toLocaleDateString('ru-RU', {
                 timeZone: 'Europe/Moscow',
                 month: 'short',
@@ -612,7 +612,7 @@ const DeadlineTracker = () => {
                 </DialogHeader>
                 <div className="space-y-4 mt-4">
                   <div>
-                    <Label htmlFor="name" className="text-slate-700">Name</Label>
+                    <Label htmlFor="name" className="text-slate-700 dark:text-slate-300">Name</Label>
                     <Input
                       id="name"
                       value={formData.name}
@@ -622,7 +622,7 @@ const DeadlineTracker = () => {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="task" className="text-slate-700">Task / Description</Label>
+                    <Label htmlFor="task" className="text-slate-700 dark:text-slate-300">Task / Description</Label>
                     <Textarea
                       id="task"
                       value={formData.task}
@@ -632,7 +632,7 @@ const DeadlineTracker = () => {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="dueDate" className="text-slate-700">Due Date & Time (Moscow)</Label>
+                    <Label htmlFor="dueDate" className="text-slate-700 dark:text-slate-300">Due Date & Time (Moscow)</Label>
                     <Input
                       id="dueDate"
                       type="datetime-local"
@@ -650,14 +650,14 @@ const DeadlineTracker = () => {
                         checked={formData.isRecurring}
                         onCheckedChange={(checked) => setFormData(prev => ({ ...prev, isRecurring: checked }))}
                       />
-                      <Label htmlFor="isRecurring" className="text-slate-700">
+                      <Label htmlFor="isRecurring" className="text-slate-700 dark:text-slate-300">
                         Make temporary (recurring)
                       </Label>
                     </div>
                     
                     {formData.isRecurring && (
                       <div>
-                        <Label htmlFor="intervalDays" className="text-slate-700">Period (days)</Label>
+                        <Label htmlFor="intervalDays" className="text-slate-700 dark:text-slate-300">Period (days)</Label>
                         <Select
                           value={formData.intervalDays}
                           onValueChange={(value) => setFormData(prev => ({ ...prev, intervalDays: value }))}
@@ -712,7 +712,7 @@ const DeadlineTracker = () => {
           {/* Deadlines Sections */}
           {deadlines.length === 0 ? (
             <div className="text-center py-16">
-              <Clock className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+              <Clock className="w-16 h-16 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
               <p className="text-slate-500 text-lg">Nothing to track yet</p>
               <p className="text-slate-400 text-sm mt-2">Add your first deadline to get started</p>
             </div>
@@ -725,7 +725,7 @@ const DeadlineTracker = () => {
                   <>
                     {/* Common Deadlines Section - now first */}
                     <div>
-                      <h2 className="text-2xl font-semibold text-slate-700 mb-6 text-center">Common</h2>
+                      <h2 className="text-2xl font-semibold text-slate-700 dark:text-slate-300 mb-6 text-center">Common</h2>
                       {regular.length === 0 ? (
                         <div className="text-center py-8">
                           <p className="text-slate-400">No common deadlines</p>
@@ -743,7 +743,7 @@ const DeadlineTracker = () => {
                         <CollapsibleTrigger asChild>
                           <Button 
                             variant="ghost" 
-                            className="w-full text-2xl font-semibold text-slate-700 mb-6 hover:bg-slate-100 p-4 flex items-center justify-center gap-2"
+                            className="w-full text-2xl font-semibold text-slate-700 dark:text-slate-300 mb-6 hover:bg-slate-100 dark:hover:bg-slate-800 p-4 flex items-center justify-center gap-2"
                           >
                             Temporary
                             {isTemporaryCollapsed ? 
