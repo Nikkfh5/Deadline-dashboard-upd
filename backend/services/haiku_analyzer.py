@@ -3,7 +3,7 @@ import json
 import logging
 import os
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -75,6 +75,26 @@ URL страницы: {url}
 Конвертируй все даты в ISO8601 формат.
 Отвечай ТОЛЬКО валидным JSON без markdown-обёрток."""
 
+DATE_PARSE_PROMPT = """Пользователь вводит дату/время дедлайна в свободной форме. Разбери текст и верни точную дату.
+
+СЕГОДНЯ: {today}
+
+Текст пользователя: "{user_text}"
+
+Правила:
+- "завтра" = следующий день, "послезавтра" = +2 дня
+- "в пятницу", "в среду" = ближайший такой день недели (если сегодня этот день — берём следующую неделю)
+- "через N дней/недель" = +N дней/недель от сегодня
+- Если время не указано — 23:59
+- Все даты в московском часовом поясе
+- Если год не указан — текущий; если дата уже прошла в этом году — следующий год
+
+Ответь ТОЛЬКО JSON без markdown:
+{{"date": "YYYY-MM-DDTHH:MM:SS", "parsed": true}}
+
+Если не удалось распознать:
+{{"date": null, "parsed": false}}"""
+
 
 class HaikuAnalyzer:
     def __init__(self, api_key: Optional[str] = None):
@@ -121,6 +141,29 @@ class HaikuAnalyzer:
         except Exception as e:
             logger.error(f"Haiku API error: {e}")
             return {"has_deadline": False, "deadlines": [], "reasoning": str(e)}
+
+    async def parse_date(self, user_text: str) -> Optional[datetime]:
+        """Parse natural language date using Haiku. Returns datetime in UTC or None."""
+        if not self.client:
+            return None
+
+        today = datetime.now().strftime("%Y-%m-%d (%A)")
+        prompt = DATE_PARSE_PROMPT.format(today=today, user_text=user_text)
+
+        try:
+            response = await self.client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=256,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            raw = response.content[0].text.strip()
+            data = _extract_json(raw)
+            if data.get("parsed") and data.get("date"):
+                dt = datetime.fromisoformat(data["date"])
+                return dt - timedelta(hours=3)
+        except Exception as e:
+            logger.error(f"Haiku date parse error: {e}")
+        return None
 
     async def analyze_wiki(self, html_content: str, url: str) -> list:
         if not self.client:

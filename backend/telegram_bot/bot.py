@@ -9,6 +9,7 @@ from telegram_bot.handlers.channels import add_channel_command, remove_channel_c
 from telegram_bot.handlers.wiki import add_wiki_command, remove_wiki_command, list_wikis_command
 from telegram_bot.handlers.deadlines import my_deadlines_command
 from telegram_bot.handlers.settings import share_command, join_command
+from telegram_bot.handlers.add_deadline import build_add_deadline_conversation
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,7 @@ async def start_bot():
 
     _app = Application.builder().token(token).build()
 
+    _app.add_handler(build_add_deadline_conversation())
     _app.add_handler(CommandHandler("start", start_command))
     _app.add_handler(CommandHandler("help", help_command))
     _app.add_handler(CommandHandler("dashboard", dashboard_command))

@@ -10,6 +10,45 @@ from services.database import get_db
 
 logger = logging.getLogger(__name__)
 
+HELP_TEXT = (
+    "Доступные команды:\n\n"
+    "Дедлайны:\n"
+    "/add — добавить дедлайн вручную\n"
+    "/my_deadlines — ближайшие дедлайны\n"
+    "/dashboard — ссылка на дашборд\n\n"
+    "Каналы:\n"
+    "/add_channel @name — мониторить канал\n"
+    "/remove_channel @name — убрать канал\n"
+    "/list_channels — список каналов\n\n"
+    "Wiki:\n"
+    "/add_wiki URL — добавить wiki-страницу\n"
+    "/remove_wiki URL — убрать wiki\n"
+    "/list_wikis — список wiki\n\n"
+    "Шаринг:\n"
+    "/share — код для одногруппников\n"
+    "/join КОД — подключить чужие источники\n\n"
+    "/help — показать это сообщение"
+)
+
+
+async def _send_and_pin_help(chat_id, context: ContextTypes.DEFAULT_TYPE):
+    """Send help message and pin it. Unpin previous help if exists."""
+    # Unpin previous pinned help message if we saved its id
+    bot_data = context.bot_data
+    prev_msg_id = bot_data.get(f"pinned_help_{chat_id}")
+    if prev_msg_id:
+        try:
+            await context.bot.unpin_chat_message(chat_id, prev_msg_id)
+        except Exception:
+            pass
+
+    msg = await context.bot.send_message(chat_id, HELP_TEXT)
+    try:
+        await msg.pin(disable_notification=True)
+        bot_data[f"pinned_help_{chat_id}"] = msg.message_id
+    except Exception as e:
+        logger.debug(f"Could not pin help message: {e}")
+
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -41,44 +80,16 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     dashboard_link = f"{frontend_url}?token={token}"
 
     await update.message.reply_text(
-        f"Привет, {user.first_name}! 👋\n\n"
+        f"Привет, {user.first_name}!\n\n"
         f"Я помогу отслеживать дедлайны из Telegram-каналов и вики ФКН.\n\n"
-        f"📊 Твой дашборд: {dashboard_link}\n\n"
-        f"Команды:\n"
-        f"/add_channel @name — добавить TG канал\n"
-        f"/remove_channel @name — убрать канал\n"
-        f"/list_channels — список каналов\n"
-        f"/add_wiki URL — добавить wiki-страницу\n"
-        f"/remove_wiki URL — убрать wiki\n"
-        f"/list_wikis — список wiki\n"
-        f"/my_deadlines — ближайшие дедлайны\n"
-        f"/dashboard — ссылка на дашборд\n"
-        f"/share — поделиться источниками с одногруппниками\n"
-        f"/join КОД — подключить чужие источники\n"
-        f"/help — помощь"
+        f"Твой дашборд: {dashboard_link}"
     )
+
+    await _send_and_pin_help(update.effective_chat.id, context)
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "Доступные команды:\n\n"
-        "Каналы:\n"
-        "/add_channel @channelname — начать мониторинг канала\n"
-        "/remove_channel @channelname — перестать мониторить\n"
-        "/list_channels — показать все каналы\n\n"
-        "Wiki:\n"
-        "/add_wiki URL — добавить wiki-страницу\n"
-        "/remove_wiki URL — убрать wiki\n"
-        "/list_wikis — показать все wiki\n\n"
-        "Дедлайны:\n"
-        "/my_deadlines — ближайшие дедлайны\n"
-        "/dashboard — ссылка на дашборд\n\n"
-        "Шаринг:\n"
-        "/share — сгенерировать код для одногруппников\n"
-        "/join КОД — подключить источники по коду\n\n"
-        "Бот автоматически парсит новые посты и обновления wiki, "
-        "используя ИИ для извлечения информации о дедлайнах."
-    )
+    await _send_and_pin_help(update.effective_chat.id, context)
 
 
 async def dashboard_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
