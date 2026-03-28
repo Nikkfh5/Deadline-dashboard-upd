@@ -14,6 +14,7 @@ import { Badge } from './ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
 import { mockDeadlines } from '../mock';
 import { fetchDeadlines, createDeadline, updateDeadline, deleteDeadlineApi, hasToken } from '../services/api';
+import StatsPanel from './StatsPanel';
 
 // Normalize snake_case server response to camelCase frontend format
 const normalizeServerDeadline = (d) => ({
@@ -768,6 +769,9 @@ const DeadlineTracker = () => {
               })()}
             </div>
           )}
+
+          {/* Statistics */}
+          <StatsPanel />
         </div>
       </div>
     </TooltipProvider>

@@ -72,6 +72,19 @@ export async function deleteDeadlineApi(deadlineId) {
   }
 }
 
+export async function fetchStats() {
+  const token = getToken();
+  if (!token) return null;
+
+  try {
+    const response = await api.get('/stats', { params: { token } });
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch stats:', error);
+    return null;
+  }
+}
+
 export function hasToken() {
   return !!getToken();
 }

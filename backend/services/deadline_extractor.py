@@ -2,7 +2,8 @@ import hashlib
 import logging
 import uuid
 from datetime import datetime
-from typing import List
+from difflib import SequenceMatcher
+from typing import List, Tuple
 
 from services.database import get_db
 
@@ -19,8 +20,12 @@ async def save_extracted_deadlines(
     source_id: str,
     source_type: str,
     raw_text: str,
-) -> int:
-    """Save extracted deadlines to DB for given users. Returns count of new deadlines."""
+) -> Tuple[int, List[dict]]:
+    """Save extracted deadlines to DB for given users.
+
+    Returns (new_count, rescheduled_list) where rescheduled_list contains
+    dicts like {"name": ..., "task": ..., "old_date": ..., "new_date": ...}.
+    """
     db = get_db()
     c_hash = content_hash(raw_text)
 
@@ -29,7 +34,7 @@ async def save_extracted_deadlines(
         "content_hash": c_hash,
     })
     if existing:
-        return 0
+        return 0, []
 
     await db.parsed_posts.insert_one({
         "source_id": source_id,
@@ -88,30 +93,80 @@ async def save_extracted_deadlines(
             })
 
     if not docs_to_insert:
-        return 0
+        return 0, []
 
-    # Batch dedup: fetch all existing (user_id, name, task, due_date) combos
+    # Batch dedup: fetch existing deadlines by (user_id, name) for fuzzy matching
     dedup_keys = [
-        {"user_id": d["user_id"], "name": d["name"], "task": d["task"], "due_date": d["due_date"]}
+        {"user_id": d["user_id"], "name": d["name"]}
         for d in docs_to_insert
     ]
+    # Deduplicate the query keys
+    seen_keys = set()
+    unique_dedup_keys = []
+    for k in dedup_keys:
+        key_tuple = (k["user_id"], k["name"])
+        if key_tuple not in seen_keys:
+            seen_keys.add(key_tuple)
+            unique_dedup_keys.append(k)
+
     existing_deadlines = await db.deadlines.find(
-        {"$or": dedup_keys},
-        {"user_id": 1, "name": 1, "task": 1, "due_date": 1},
-    ).to_list(len(dedup_keys))
+        {"$or": unique_dedup_keys},
+        {"user_id": 1, "name": 1, "task": 1, "due_date": 1, "_id": 1},
+    ).to_list(1000)
 
-    existing_set = {
-        (d["user_id"], d["name"], d["task"], d["due_date"].isoformat() if hasattr(d["due_date"], "isoformat") else str(d["due_date"]))
-        for d in existing_deadlines
-    }
+    # Group existing deadlines by (user_id, name) for fast lookup
+    from collections import defaultdict
+    existing_by_user_name = defaultdict(list)
+    for ed in existing_deadlines:
+        existing_by_user_name[(ed["user_id"], ed["name"])].append(ed)
 
-    new_docs = [
-        d for d in docs_to_insert
-        if (d["user_id"], d["name"], d["task"], d["due_date"].isoformat()) not in existing_set
-    ]
+    new_docs = []
+    rescheduled = []
+    now = datetime.utcnow()
+
+    for doc in docs_to_insert:
+        candidates = existing_by_user_name.get((doc["user_id"], doc["name"]), [])
+        matched = False
+
+        for existing in candidates:
+            ratio = SequenceMatcher(None, existing["task"], doc["task"]).ratio()
+            if ratio >= 0.6:
+                # Fuzzy match found
+                existing_due = existing["due_date"]
+                new_due = doc["due_date"]
+                if existing_due != new_due:
+                    # Reschedule: update existing deadline
+                    await db.deadlines.update_one(
+                        {"_id": existing["_id"]},
+                        {"$set": {
+                            "due_date": new_due,
+                            "previous_due_date": existing_due,
+                            "is_postponed": True,
+                            "updated_at": now,
+                            "task": doc["task"],
+                        }},
+                    )
+                    rescheduled.append({
+                        "name": doc["name"],
+                        "task": doc["task"],
+                        "old_date": existing_due,
+                        "new_date": new_due,
+                    })
+                    # Update in-memory entry so subsequent docs see the new due_date
+                    existing["due_date"] = new_due
+                    existing["task"] = doc["task"]
+                # else: same date, near-duplicate -> skip
+                matched = True
+                break
+
+        if not matched:
+            new_docs.append(doc)
 
     if new_docs:
         await db.deadlines.insert_many(new_docs)
 
-    logger.info(f"Saved {len(new_docs)} new deadlines from source {source_id}")
-    return len(new_docs)
+    logger.info(
+        f"Saved {len(new_docs)} new deadlines, "
+        f"{len(rescheduled)} rescheduled from source {source_id}"
+    )
+    return len(new_docs), rescheduled

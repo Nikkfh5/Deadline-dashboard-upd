@@ -156,7 +156,7 @@ async def _handle_message(event):
     user_ids = list(set(s["user_id"] for s in sources))
     source_id = str(sources[0]["_id"])
 
-    count = await save_extracted_deadlines(
+    count, rescheduled = await save_extracted_deadlines(
         user_ids=user_ids,
         extracted=extracted,
         source_id=source_id,
@@ -175,3 +175,8 @@ async def _handle_message(event):
 
         from services.notifications import notify_new_deadlines
         await notify_new_deadlines(user_ids, extracted, chat.title or channel_username or str(channel_id), count)
+
+    if rescheduled:
+        logger.info(f"Rescheduled {len(rescheduled)} deadlines from {channel_username or str(channel_id)}")
+        from services.notifications import notify_deadline_moved
+        await notify_deadline_moved(user_ids, rescheduled, chat.title or channel_username or str(channel_id))

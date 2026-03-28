@@ -154,9 +154,11 @@ app.include_router(api_router)
 from routers.deadlines import router as deadlines_router
 from routers.users import router as users_router
 from routers.sources import router as sources_router
+from routers.stats import router as stats_router
 app.include_router(deadlines_router)
 app.include_router(users_router)
 app.include_router(sources_router)
+app.include_router(stats_router)
 
 cors_origins = os.environ.get("CORS_ORIGINS", "*").split(",")
 app.add_middleware(

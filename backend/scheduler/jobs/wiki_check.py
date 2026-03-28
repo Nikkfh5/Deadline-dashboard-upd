@@ -74,20 +74,25 @@ async def _check_url(db, parser, url, url_sources):
             user_ids = list(set(s["user_id"] for s in url_sources))
             source_id = str(url_sources[0]["_id"])
 
-            count = await save_extracted_deadlines(
+            count, rescheduled = await save_extracted_deadlines(
                 user_ids=user_ids,
                 extracted=deadlines,
                 source_id=source_id,
                 source_type="wiki",
                 raw_text=url,
             )
-            logger.info(f"Wiki {url}: found {len(deadlines)} deadlines, {count} new")
+            logger.info(f"Wiki {url}: found {len(deadlines)} deadlines, {count} new, {len(rescheduled)} rescheduled")
 
             # Notify users about new deadlines
             if count > 0:
                 from services.notifications import notify_new_deadlines
                 subject = result.get("subject", url.split("/")[-1].replace("_", " "))
                 await notify_new_deadlines(user_ids, deadlines, f"Wiki: {subject}", count)
+
+            if rescheduled:
+                from services.notifications import notify_deadline_moved
+                subject = result.get("subject", url.split("/")[-1].replace("_", " "))
+                await notify_deadline_moved(user_ids, rescheduled, f"Wiki: {subject}")
 
         # Update all sources for this URL
         source_ids = [s["_id"] for s in url_sources]
