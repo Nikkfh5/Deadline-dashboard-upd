@@ -2,12 +2,13 @@ import logging
 import re
 from datetime import datetime
 
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ContextTypes,
     ConversationHandler,
     CommandHandler,
     MessageHandler,
+    CallbackQueryHandler,
     filters,
 )
 
@@ -15,6 +16,7 @@ from services.database import get_db
 from telegram_bot.utils import get_current_user
 
 WAITING_CHANNEL_LINK = 0
+DEL_CHANNEL_CB = "del_ch:"
 
 logger = logging.getLogger(__name__)
 
@@ -206,38 +208,53 @@ def build_add_channel_conversation() -> ConversationHandler:
 
 
 async def remove_channel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.args:
-        await update.message.reply_text("Укажи канал: /remove_channel @channelname")
-        return
-
-    channel = _normalize_channel(" ".join(context.args))
+    """Show channels as buttons for deletion."""
     user = await get_current_user(update)
     if not user:
         return
 
     db = get_db()
-    user_id = str(user["_id"])
+    sources = await db.sources.find({
+        "user_id": str(user["_id"]),
+        "type": "telegram_channel",
+        "is_active": True,
+    }).to_list(100)
 
-    # Try exact match first, then search by display_name
-    source = await db.sources.find_one({
-        "user_id": user_id, "type": "telegram_channel", "identifier": channel, "is_active": True,
-    })
-    if not source:
-        # Maybe user typed the display name
-        raw_name = " ".join(context.args).strip()
-        source = await db.sources.find_one({
-            "user_id": user_id, "type": "telegram_channel",
-            "display_name": {"$regex": re.escape(raw_name), "$options": "i"},
-            "is_active": True,
-        })
-
-    if not source:
-        await update.message.reply_text("Канал не найден в твоих источниках.\nПосмотри список: /list_channels")
+    if not sources:
+        await update.message.reply_text("Нет каналов для удаления.")
         return
 
-    await db.sources.delete_one({"_id": source["_id"]})
+    buttons = []
+    for s in sources:
+        name = s.get("display_name", s["identifier"])
+        buttons.append([InlineKeyboardButton(
+            f"X  {name}",
+            callback_data=f"{DEL_CHANNEL_CB}{s['_id']}",
+        )])
+
+    await update.message.reply_text(
+        "Нажми на канал чтобы удалить:",
+        reply_markup=InlineKeyboardMarkup(buttons),
+    )
+
+
+async def delete_channel_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle channel deletion via inline button."""
+    query = update.callback_query
+    await query.answer()
+
+    from bson import ObjectId
+    source_id = query.data.removeprefix(DEL_CHANNEL_CB)
+
+    db = get_db()
+    source = await db.sources.find_one({"_id": ObjectId(source_id)})
+    if not source:
+        await query.answer("Канал не найден", show_alert=True)
+        return
+
+    await db.sources.delete_one({"_id": ObjectId(source_id)})
     name = source.get("display_name", source["identifier"])
-    await update.message.reply_text(f"Канал \"{name}\" удалён.")
+    await query.edit_message_text(f"Канал \"{name}\" удалён.")
 
 
 async def list_channels_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -252,18 +269,21 @@ async def list_channels_command(update: Update, context: ContextTypes.DEFAULT_TY
         "is_active": True,
     }).to_list(100)
 
+    msg = update.message or update.callback_query.message
+
     if not sources:
-        await update.message.reply_text(
-            "У тебя нет отслеживаемых каналов.\n"
-            "Добавь: /add_channel @channelname"
-        )
+        await msg.reply_text("Нет отслеживаемых каналов.")
         return
 
     lines = ["Отслеживаемые каналы:\n"]
     for s in sources:
         name = s.get("display_name", s["identifier"])
+        identifier = s.get("identifier", "")
         status = "+" if s.get("joined") else "..."
-        lines.append(f"[{status}] {name}")
+        link = ""
+        if identifier.startswith("@"):
+            link = f" | https://t.me/{identifier[1:]}"
+        lines.append(f"[{status}] {name}{link}")
 
     lines.append("\n[+] = подключён, [...] = подключается")
-    await update.message.reply_text("\n".join(lines))
+    await msg.reply_text("\n".join(lines), disable_web_page_preview=True)

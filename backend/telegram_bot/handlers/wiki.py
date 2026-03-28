@@ -1,12 +1,13 @@
 import logging
 from datetime import datetime
 
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ContextTypes,
     ConversationHandler,
     CommandHandler,
     MessageHandler,
+    CallbackQueryHandler,
     filters,
 )
 
@@ -16,6 +17,7 @@ from telegram_bot.utils import get_current_user
 logger = logging.getLogger(__name__)
 
 WAITING_WIKI_URL = 0
+DEL_WIKI_CB = "del_wiki:"
 
 
 def _is_valid_wiki_url(url: str) -> bool:
@@ -112,25 +114,53 @@ def build_add_wiki_conversation() -> ConversationHandler:
 
 
 async def remove_wiki_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.args:
-        await update.message.reply_text("Укажи URL: /remove_wiki http://wiki.cs.hse.ru/...")
-        return
-
-    url = context.args[0].strip()
+    """Show wikis as buttons for deletion."""
     user = await get_current_user(update)
     if not user:
         return
 
     db = get_db()
-    result = await db.sources.update_one(
-        {"user_id": str(user["_id"]), "type": "wiki_page", "identifier": url},
-        {"$set": {"is_active": False, "updated_at": datetime.utcnow()}},
+    sources = await db.sources.find({
+        "user_id": str(user["_id"]),
+        "type": "wiki_page",
+        "is_active": True,
+    }).to_list(100)
+
+    if not sources:
+        await update.message.reply_text("Нет wiki для удаления.")
+        return
+
+    buttons = []
+    for s in sources:
+        name = s.get("display_name", s["identifier"])
+        buttons.append([InlineKeyboardButton(
+            f"X  {name}",
+            callback_data=f"{DEL_WIKI_CB}{s['_id']}",
+        )])
+
+    await update.message.reply_text(
+        "Нажми на wiki чтобы удалить:",
+        reply_markup=InlineKeyboardMarkup(buttons),
     )
 
-    if result.modified_count == 0:
-        await update.message.reply_text("Wiki-страница не найдена в твоих источниках.")
-    else:
-        await update.message.reply_text("Wiki-страница удалена из мониторинга.")
+
+async def delete_wiki_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle wiki deletion via inline button."""
+    query = update.callback_query
+    await query.answer()
+
+    from bson import ObjectId
+    source_id = query.data.removeprefix(DEL_WIKI_CB)
+
+    db = get_db()
+    source = await db.sources.find_one({"_id": ObjectId(source_id)})
+    if not source:
+        await query.answer("Wiki не найдена", show_alert=True)
+        return
+
+    await db.sources.delete_one({"_id": ObjectId(source_id)})
+    name = source.get("display_name", source["identifier"])
+    await query.edit_message_text(f"Wiki \"{name}\" удалена.")
 
 
 async def list_wikis_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -145,11 +175,10 @@ async def list_wikis_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         "is_active": True,
     }).to_list(100)
 
+    msg = update.message or update.callback_query.message
+
     if not sources:
-        await update.message.reply_text(
-            "У тебя нет отслеживаемых wiki-страниц.\n"
-            "Добавь: /add_wiki http://wiki.cs.hse.ru/..."
-        )
+        await msg.reply_text("Нет отслеживаемых wiki-страниц.")
         return
 
     lines = ["Отслеживаемые wiki-страницы:\n"]
@@ -157,4 +186,4 @@ async def list_wikis_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         name = s.get("display_name", s["identifier"])
         lines.append(f"- {name}")
 
-    await update.message.reply_text("\n".join(lines))
+    await msg.reply_text("\n".join(lines))
