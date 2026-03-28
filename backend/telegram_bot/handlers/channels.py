@@ -3,10 +3,18 @@ import re
 from datetime import datetime
 
 from telegram import Update
-from telegram.ext import ContextTypes
+from telegram.ext import (
+    ContextTypes,
+    ConversationHandler,
+    CommandHandler,
+    MessageHandler,
+    filters,
+)
 
 from services.database import get_db
 from telegram_bot.utils import get_current_user
+
+WAITING_CHANNEL_LINK = 0
 
 logger = logging.getLogger(__name__)
 
@@ -85,19 +93,41 @@ async def _try_join_now(identifier: str, source_doc: dict) -> str:
     return identifier
 
 
-async def add_channel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.args:
-        await update.message.reply_text(
-            "Укажи канал:\n/add_channel @channelname\n"
-            "или\n/add_channel https://t.me/channelname\n"
-            "или приватную ссылку: /add_channel https://t.me/+XXXXX"
-        )
-        return
-
-    channel = _normalize_channel(" ".join(context.args))
+async def add_channel_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Entry point: /add_channel — if link provided inline, process it; otherwise ask."""
     user = await get_current_user(update)
     if not user:
-        return
+        return ConversationHandler.END
+
+    if context.args:
+        await _process_channel_link(update, context, " ".join(context.args), user)
+        return ConversationHandler.END
+
+    context.user_data["add_channel_user"] = user
+    await update.message.reply_text(
+        "Отправь ссылку на канал или @username:\n\n"
+        "  @channelname\n"
+        "  https://t.me/channelname\n"
+        "  https://t.me/+XXXXX (приватный)"
+    )
+    return WAITING_CHANNEL_LINK
+
+
+async def channel_link_received(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Receive channel link in second message."""
+    user = context.user_data.pop("add_channel_user", None)
+    if not user:
+        user = await get_current_user(update)
+        if not user:
+            return ConversationHandler.END
+
+    await _process_channel_link(update, context, update.message.text.strip(), user)
+    return ConversationHandler.END
+
+
+async def _process_channel_link(update, context, raw_text: str, user: dict):
+    """Shared logic for adding a channel."""
+    channel = _normalize_channel(raw_text)
 
     db = get_db()
     user_id = str(user["_id"])
@@ -137,7 +167,6 @@ async def add_channel_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         result = await db.sources.insert_one(source_doc)
         source_doc["_id"] = result.inserted_id
 
-    # Join in background — don't block the bot response
     import asyncio
 
     async def _join_background():
@@ -154,11 +183,26 @@ async def add_channel_command(update: Update, context: ContextTypes.DEFAULT_TYPE
                     f"Бот начнёт мониторить посты в ближайшие минуты."
                 )
         except Exception:
-            pass  # TG API timeout — not critical
+            pass
         logger.info(f"User {update.effective_user.id} added channel {channel} -> {display_name}")
 
     await update.message.reply_text("Канал добавлен! Подключаюсь...")
     asyncio.create_task(_join_background())
+
+
+def build_add_channel_conversation() -> ConversationHandler:
+    return ConversationHandler(
+        entry_points=[CommandHandler("add_channel", add_channel_command)],
+        states={
+            WAITING_CHANNEL_LINK: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, channel_link_received),
+            ],
+        },
+        fallbacks=[CommandHandler("cancel", lambda u, c: ConversationHandler.END)],
+        conversation_timeout=120,
+        per_user=True,
+        per_chat=True,
+    )
 
 
 async def remove_channel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):

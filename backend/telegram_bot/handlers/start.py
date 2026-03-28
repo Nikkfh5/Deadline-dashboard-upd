@@ -3,51 +3,85 @@ import os
 import uuid
 from datetime import datetime
 
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
 from services.database import get_db
 
 logger = logging.getLogger(__name__)
 
-HELP_TEXT = (
-    "Доступные команды:\n\n"
-    "Дедлайны:\n"
-    "/add — добавить дедлайн вручную\n"
-    "/my_deadlines — ближайшие дедлайны\n"
-    "/dashboard — ссылка на дашборд\n\n"
-    "Каналы:\n"
-    "/add_channel @name — мониторить канал\n"
-    "/remove_channel @name — убрать канал\n"
-    "/list_channels — список каналов\n\n"
-    "Wiki:\n"
-    "/add_wiki URL — добавить wiki-страницу\n"
-    "/remove_wiki URL — убрать wiki\n"
-    "/list_wikis — список wiki\n\n"
-    "Шаринг:\n"
-    "/share — код для одногруппников\n"
-    "/join КОД — подключить чужие источники\n\n"
-    "/help — показать это сообщение"
-)
+MENU_CB = "menu:"
 
 
-async def _send_and_pin_help(chat_id, context: ContextTypes.DEFAULT_TYPE):
-    """Send help message and pin it. Unpin previous help if exists."""
-    # Unpin previous pinned help message if we saved its id
+def main_menu_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("Добавить дедлайн", callback_data=f"{MENU_CB}add"),
+            InlineKeyboardButton("Мои дедлайны", callback_data=f"{MENU_CB}deadlines"),
+        ],
+        [
+            InlineKeyboardButton("Добавить канал", callback_data=f"{MENU_CB}add_channel"),
+            InlineKeyboardButton("Добавить wiki", callback_data=f"{MENU_CB}add_wiki"),
+        ],
+        [
+            InlineKeyboardButton("Мои источники", callback_data=f"{MENU_CB}sources"),
+            InlineKeyboardButton("Дашборд", callback_data=f"{MENU_CB}dashboard"),
+        ],
+        [
+            InlineKeyboardButton("Поделиться", callback_data=f"{MENU_CB}share"),
+        ],
+    ])
+
+
+async def send_menu(chat_id, context: ContextTypes.DEFAULT_TYPE, text: str = "Выбери действие:"):
+    """Send main menu with inline buttons."""
     bot_data = context.bot_data
-    prev_msg_id = bot_data.get(f"pinned_help_{chat_id}")
+    prev_msg_id = bot_data.get(f"menu_{chat_id}")
     if prev_msg_id:
         try:
-            await context.bot.unpin_chat_message(chat_id, prev_msg_id)
+            await context.bot.delete_message(chat_id, prev_msg_id)
         except Exception:
             pass
 
-    msg = await context.bot.send_message(chat_id, HELP_TEXT)
-    try:
-        await msg.pin(disable_notification=True)
-        bot_data[f"pinned_help_{chat_id}"] = msg.message_id
-    except Exception as e:
-        logger.debug(f"Could not pin help message: {e}")
+    msg = await context.bot.send_message(chat_id, text, reply_markup=main_menu_keyboard())
+    bot_data[f"menu_{chat_id}"] = msg.message_id
+
+
+async def menu_button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle main menu button presses."""
+    query = update.callback_query
+    await query.answer()
+    action = query.data.removeprefix(MENU_CB)
+    chat_id = query.message.chat_id
+
+    if action == "add":
+        await query.edit_message_text("Используй /add чтобы добавить дедлайн.")
+    elif action == "deadlines":
+        from telegram_bot.handlers.deadlines import my_deadlines_command
+        # Simulate command call
+        await query.edit_message_text("Загружаю...")
+        await my_deadlines_command(update, context)
+    elif action == "add_channel":
+        await query.edit_message_text("Используй /add_channel чтобы добавить канал.")
+    elif action == "add_wiki":
+        await query.edit_message_text("Используй /add_wiki чтобы добавить wiki.")
+    elif action == "sources":
+        from telegram_bot.handlers.channels import list_channels_command
+        from telegram_bot.handlers.wiki import list_wikis_command
+        await query.edit_message_text("Загружаю...")
+        await list_channels_command(update, context)
+        await list_wikis_command(update, context)
+    elif action == "dashboard":
+        from telegram_bot.handlers.start import dashboard_command
+        await query.edit_message_text("Загружаю...")
+        await dashboard_command(update, context)
+    elif action == "share":
+        from telegram_bot.handlers.settings import share_command
+        await query.edit_message_text("Загружаю...")
+        await share_command(update, context)
+
+    # Re-send menu after action
+    await send_menu(chat_id, context)
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -81,15 +115,25 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(
         f"Привет, {user.first_name}!\n\n"
-        f"Я помогу отслеживать дедлайны из Telegram-каналов и вики ФКН.\n\n"
+        f"Я помогу отслеживать дедлайны из Telegram-каналов и вики.\n\n"
         f"Твой дашборд: {dashboard_link}"
     )
 
-    await _send_and_pin_help(update.effective_chat.id, context)
+    await send_menu(update.effective_chat.id, context)
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await _send_and_pin_help(update.effective_chat.id, context)
+    await send_menu(update.effective_chat.id, context, text=(
+        "Команды:\n"
+        "/add — добавить дедлайн\n"
+        "/add_channel — добавить канал\n"
+        "/add_wiki — добавить wiki\n"
+        "/my_deadlines — дедлайны\n"
+        "/dashboard — ссылка на дашборд\n"
+        "/share — поделиться\n"
+        "/join КОД — подключить источники\n\n"
+        "Или используй кнопки:"
+    ))
 
 
 async def dashboard_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
