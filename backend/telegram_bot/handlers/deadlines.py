@@ -102,10 +102,10 @@ async def my_deadlines_command(update: Update, context: ContextTypes.DEFAULT_TYP
         )
 
         # Complete button per deadline
-        short_name = d['name'][:20]
+        short_name = d['name'][:25]
         buttons.append([
             InlineKeyboardButton(
-                f"Выполнено: {short_name}",
+                f"\u2705 {short_name}",
                 callback_data=f"{COMPLETE_DEADLINE_CB}{d['id']}",
             )
         ])
