@@ -70,7 +70,7 @@ REPLY_KEYBOARD = ReplyKeyboardMarkup(
     [
         [KeyboardButton("Добавить дедлайн"), KeyboardButton("Мои дедлайны")],
         [KeyboardButton("Добавить канал"), KeyboardButton("Добавить wiki")],
-        [KeyboardButton("Мои источники"), KeyboardButton("Дашборд")],
+        [KeyboardButton("Мои источники"), KeyboardButton("Настройки")],
     ],
     resize_keyboard=True,
     is_persistent=True,
@@ -97,6 +97,9 @@ async def reply_keyboard_handler(update: Update, context: ContextTypes.DEFAULT_T
         await add_wiki_command(update, context)
     elif text == "Мои источники":
         await _show_all_sources(update, context)
+    elif text == "Настройки":
+        from telegram_bot.handlers.user_settings import settings_command
+        await settings_command(update, context)
     elif text == "Дашборд":
         await dashboard_command(update, context)
 

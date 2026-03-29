@@ -9,6 +9,7 @@ from telegram_bot.handlers.channels import remove_channel_command, list_channels
 from telegram_bot.handlers.wiki import remove_wiki_command, list_wikis_command, build_add_wiki_conversation, delete_wiki_button, DEL_WIKI_CB
 from telegram_bot.handlers.deadlines import my_deadlines_command, complete_deadline_button, COMPLETE_DEADLINE_CB
 from telegram_bot.handlers.settings import share_command, join_command
+from telegram_bot.handlers.user_settings import settings_command, settings_callback, SETTINGS_CB
 from telegram_bot.handlers.add_deadline import build_add_deadline_conversation
 
 logger = logging.getLogger(__name__)
@@ -38,12 +39,14 @@ async def start_bot():
     _app.add_handler(CommandHandler("my_deadlines", my_deadlines_command))
     _app.add_handler(CommandHandler("share", share_command))
     _app.add_handler(CommandHandler("join", join_command))
+    _app.add_handler(CommandHandler("settings", settings_command))
+    _app.add_handler(CallbackQueryHandler(settings_callback, pattern=f"^{SETTINGS_CB}"))
     _app.add_handler(CallbackQueryHandler(complete_deadline_button, pattern=f"^{COMPLETE_DEADLINE_CB}"))
     _app.add_handler(CallbackQueryHandler(delete_channel_button, pattern=f"^{DEL_CHANNEL_CB}"))
     _app.add_handler(CallbackQueryHandler(delete_wiki_button, pattern=f"^{DEL_WIKI_CB}"))
 
     # Reply keyboard buttons — must be LAST to not intercept conversation text
-    KEYBOARD_TEXTS = {"Добавить дедлайн", "Мои дедлайны", "Добавить канал", "Добавить wiki", "Мои источники", "Дашборд"}
+    KEYBOARD_TEXTS = {"Добавить дедлайн", "Мои дедлайны", "Добавить канал", "Добавить wiki", "Мои источники", "Дашборд", "Настройки"}
     _app.add_handler(MessageHandler(
         filters.TEXT & filters.Regex(f"^({'|'.join(KEYBOARD_TEXTS)})$"),
         reply_keyboard_handler,
@@ -61,6 +64,7 @@ async def start_bot():
         ("remove_channel", "Удалить канал"),
         ("remove_wiki", "Удалить wiki"),
         ("dashboard", "Открыть дашборд"),
+        ("settings", "Настройки"),
         ("share", "Поделиться источниками"),
         ("help", "Помощь"),
     ])
