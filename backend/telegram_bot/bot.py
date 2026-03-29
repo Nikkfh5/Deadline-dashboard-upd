@@ -43,7 +43,7 @@ async def start_bot():
     _app.add_handler(CallbackQueryHandler(delete_wiki_button, pattern=f"^{DEL_WIKI_CB}"))
 
     # Reply keyboard buttons — must be LAST to not intercept conversation text
-    KEYBOARD_TEXTS = {"Добавить дедлайн", "Мои дедлайны", "Добавить канал", "Добавить wiki", "Дашборд", "Поделиться"}
+    KEYBOARD_TEXTS = {"Добавить дедлайн", "Мои дедлайны", "Добавить канал", "Добавить wiki", "Мои источники", "Дашборд"}
     _app.add_handler(MessageHandler(
         filters.TEXT & filters.Regex(f"^({'|'.join(KEYBOARD_TEXTS)})$"),
         reply_keyboard_handler,

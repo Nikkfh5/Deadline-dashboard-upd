@@ -15,7 +15,7 @@ REPLY_KEYBOARD = ReplyKeyboardMarkup(
     [
         [KeyboardButton("Добавить дедлайн"), KeyboardButton("Мои дедлайны")],
         [KeyboardButton("Добавить канал"), KeyboardButton("Добавить wiki")],
-        [KeyboardButton("Дашборд"), KeyboardButton("Поделиться")],
+        [KeyboardButton("Мои источники"), KeyboardButton("Дашборд")],
     ],
     resize_keyboard=True,
     is_persistent=True,
@@ -40,11 +40,13 @@ async def reply_keyboard_handler(update: Update, context: ContextTypes.DEFAULT_T
         from telegram_bot.handlers.wiki import add_wiki_command
         context.args = []
         await add_wiki_command(update, context)
+    elif text == "Мои источники":
+        from telegram_bot.handlers.channels import list_channels_command
+        from telegram_bot.handlers.wiki import list_wikis_command
+        await list_channels_command(update, context)
+        await list_wikis_command(update, context)
     elif text == "Дашборд":
         await dashboard_command(update, context)
-    elif text == "Поделиться":
-        from telegram_bot.handlers.settings import share_command
-        await share_command(update, context)
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
