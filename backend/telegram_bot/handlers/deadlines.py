@@ -10,7 +10,7 @@ from telegram_bot.utils import get_current_user
 logger = logging.getLogger(__name__)
 
 SOURCE_ICONS = {"manual": "M", "telegram": "T", "wiki": "W"}
-DEL_DEADLINE_CB = "del_dl:"
+COMPLETE_DEADLINE_CB = "done_dl:"
 
 
 def _channel_link(identifier: str) -> str | None:
@@ -101,12 +101,12 @@ async def my_deadlines_command(update: Update, context: ContextTypes.DEFAULT_TYP
             f"   {date_str} (через {time_str}){conf_str}{link}"
         )
 
-        # Delete button per deadline
+        # Complete button per deadline
         short_name = d['name'][:20]
         buttons.append([
             InlineKeyboardButton(
-                f"X  {short_name}",
-                callback_data=f"{DEL_DEADLINE_CB}{d['id']}",
+                f"Выполнено: {short_name}",
+                callback_data=f"{COMPLETE_DEADLINE_CB}{d['id']}",
             )
         ])
 
@@ -115,12 +115,12 @@ async def my_deadlines_command(update: Update, context: ContextTypes.DEFAULT_TYP
     await msg.reply_text("\n".join(lines), reply_markup=keyboard, disable_web_page_preview=True)
 
 
-async def delete_deadline_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle deadline deletion via inline button."""
+async def complete_deadline_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle deadline completion via inline button."""
     query = update.callback_query
     await query.answer()
 
-    deadline_id = query.data.removeprefix(DEL_DEADLINE_CB)
+    deadline_id = query.data.removeprefix(COMPLETE_DEADLINE_CB)
     db = get_db()
 
     deadline = await db.deadlines.find_one({"id": deadline_id})
@@ -130,8 +130,17 @@ async def delete_deadline_button(update: Update, context: ContextTypes.DEFAULT_T
 
     await db.deadlines.delete_one({"id": deadline_id})
 
+    # Record completion
+    from datetime import datetime
+    await db.completions.insert_one({
+        "user_id": deadline.get("user_id", ""),
+        "deadline_name": deadline.get("name", ""),
+        "deadline_task": deadline.get("task", ""),
+        "completed_at": datetime.utcnow(),
+    })
+
     name = deadline.get("name", "")
-    await query.answer(f"Удалён: {name}")
+    await query.answer(f"Выполнено: {name}")
 
     # Refresh the list
     await my_deadlines_command(update, context)

@@ -95,10 +95,10 @@ const StatsPanel = ({ refreshKey = 0 }) => {
 
         {/* Busiest day — inline highlight */}
         {stats.busiest_day && (
-          <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-700 flex items-center gap-2">
-            <Flame className="w-4 h-4 text-orange-500" />
-            <span className="text-sm text-slate-600 dark:text-slate-300">
-              Самый загруженный день: <span className="font-semibold text-orange-500">{stats.busiest_day}</span>
+          <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700 flex items-center gap-3">
+            <Flame className="w-5 h-5 text-orange-500" />
+            <span className="text-base text-slate-600 dark:text-slate-300">
+              Самый загруженный день: <span className="font-bold text-orange-500">{stats.busiest_day}</span>
               <span className="text-slate-400 dark:text-slate-500"> ({stats.busiest_count} дедл.)</span>
             </span>
           </div>

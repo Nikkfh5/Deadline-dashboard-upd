@@ -64,10 +64,23 @@ export async function deleteDeadlineApi(deadlineId) {
   if (!token) return false;
 
   try {
-    await api.delete(`/deadlines/${deadlineId}`, { params: { token } });
+    await api.delete(`/deadlines/${deadlineId}`, { params: { token, complete: false } });
     return true;
   } catch (error) {
     console.error('Failed to delete deadline:', error);
+    return false;
+  }
+}
+
+export async function completeDeadlineApi(deadlineId) {
+  const token = getToken();
+  if (!token) return false;
+
+  try {
+    await api.delete(`/deadlines/${deadlineId}`, { params: { token, complete: true } });
+    return true;
+  } catch (error) {
+    console.error('Failed to complete deadline:', error);
     return false;
   }
 }

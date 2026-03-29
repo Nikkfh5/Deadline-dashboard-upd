@@ -82,24 +82,27 @@ async def update_deadline(deadline_id: str, data: DeadlineUpdate, token: str = Q
 
 
 @router.delete("/{deadline_id}")
-async def delete_deadline(deadline_id: str, token: str = Query(...)):
+async def delete_deadline(
+    deadline_id: str,
+    token: str = Query(...),
+    complete: bool = Query(False),
+):
     user = await get_user_by_token(token)
     db = get_db()
     user_id = str(user["_id"])
 
-    # Find before deleting to record completion
     deadline = await db.deadlines.find_one({"id": deadline_id, "user_id": user_id})
     if not deadline:
         raise HTTPException(status_code=404, detail="Deadline not found")
 
     await db.deadlines.delete_one({"id": deadline_id, "user_id": user_id})
 
-    # Record as completed
-    await db.completions.insert_one({
-        "user_id": user_id,
-        "deadline_name": deadline.get("name", ""),
-        "deadline_task": deadline.get("task", ""),
-        "completed_at": datetime.utcnow(),
-    })
+    if complete:
+        await db.completions.insert_one({
+            "user_id": user_id,
+            "deadline_name": deadline.get("name", ""),
+            "deadline_task": deadline.get("task", ""),
+            "completed_at": datetime.utcnow(),
+        })
 
-    return {"deleted": True}
+    return {"deleted": True, "completed": complete}

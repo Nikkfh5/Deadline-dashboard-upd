@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, Plus, X, Edit3, MoreVertical, Repeat, ChevronDown, ChevronUp, Moon, Sun } from 'lucide-react';
+import { Clock, Plus, X, Edit3, MoreVertical, Repeat, ChevronDown, ChevronUp, Moon, Sun, CheckCircle2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
 import { Input } from './ui/input';
@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Badge } from './ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
 import { mockDeadlines } from '../mock';
-import { fetchDeadlines, createDeadline, updateDeadline, deleteDeadlineApi, hasToken } from '../services/api';
+import { fetchDeadlines, createDeadline, updateDeadline, deleteDeadlineApi, completeDeadlineApi, hasToken } from '../services/api';
 import StatsPanel from './StatsPanel';
 
 // Normalize snake_case server response to camelCase frontend format
@@ -400,6 +400,13 @@ const DeadlineTracker = () => {
     }
   };
 
+  const handleCompleteDeadline = (id) => {
+    setDeadlines(prev => prev.filter(d => d.id !== id));
+    if (hasToken()) {
+      completeDeadlineApi(id).then(refreshStats);
+    }
+  };
+
   const CircularProgress = ({ percentage, color, isOverdue, isPulsing, children }) => {
     const radius = 45;
     const circumference = 2 * Math.PI * radius;
@@ -491,7 +498,17 @@ const DeadlineTracker = () => {
                 Repeat
               </DropdownMenuItem>
             )}
-            <DropdownMenuItem 
+            <DropdownMenuItem
+              onClick={(e) => {
+                e.stopPropagation();
+                handleCompleteDeadline(deadline.id);
+              }}
+              className="cursor-pointer text-green-600 focus:text-green-600"
+            >
+              <CheckCircle2 className="w-4 h-4 mr-2" />
+              Done
+            </DropdownMenuItem>
+            <DropdownMenuItem
               onClick={(e) => {
                 e.stopPropagation();
                 handleDeleteDeadline(deadline.id);
