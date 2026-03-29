@@ -17,7 +17,7 @@ const StatsPanel = ({ refreshKey = 0 }) => {
     return () => clearInterval(interval);
   }, [refreshKey]);
 
-  if (!stats) return null;
+  if (!stats || !stats.week) return null;
 
   const maxWeekCount = stats.week.reduce((max, d) => Math.max(max, d.count), 1);
 

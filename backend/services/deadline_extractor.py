@@ -10,6 +10,8 @@ from services.database import get_db
 logger = logging.getLogger(__name__)
 
 DEDUPE_SIMILARITY_THRESHOLD = 0.6
+MAX_RAW_TEXT_STORE = 5000
+MAX_ORIGINAL_TEXT = 1000
 
 
 def content_hash(text: str) -> str:
@@ -41,7 +43,7 @@ async def save_extracted_deadlines(
     await db.parsed_posts.insert_one({
         "source_id": source_id,
         "content_hash": c_hash,
-        "raw_text": raw_text[:5000],
+        "raw_text": raw_text[:MAX_RAW_TEXT_STORE],
         "has_deadline": len(extracted) > 0,
         "extracted_deadlines": extracted,
         "processed_at": datetime.utcnow(),
@@ -87,7 +89,7 @@ async def save_extracted_deadlines(
                 "source": {
                     "type": source_type,
                     "source_id": source_id,
-                    "original_text": raw_text[:1000],
+                    "original_text": raw_text[:MAX_ORIGINAL_TEXT],
                 },
                 "confidence": confidence,
                 "is_postponed": False,

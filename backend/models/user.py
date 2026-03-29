@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import List, Optional
 from datetime import datetime
 
 
@@ -7,6 +7,7 @@ class UserSettings(BaseModel):
     check_interval_minutes: int = 60
     timezone: str = "Europe/Moscow"
     notifications_enabled: bool = True
+    reminder_minutes: List[int] = [1440, 60]
 
 
 class UserCreate(BaseModel):

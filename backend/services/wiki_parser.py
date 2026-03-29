@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import logging
 import re
@@ -30,8 +31,21 @@ class WikiParser:
 
     async def parse_page(self, url: str) -> dict:
         client = await self._get_client()
-        response = await client.get(url)
-        response.raise_for_status()
+
+        # Retry HTTP fetch with backoff (2 attempts, 3s delay)
+        last_exc = None
+        for attempt in range(2):
+            try:
+                response = await client.get(url)
+                response.raise_for_status()
+                break
+            except httpx.HTTPError as exc:
+                last_exc = exc
+                if attempt < 1:
+                    logger.warning(f"Wiki fetch attempt {attempt + 1} failed for {url}: {exc}, retrying in 3s")
+                    await asyncio.sleep(3)
+        else:
+            raise last_exc
 
         html = response.text
         content_hash = hashlib.sha256(html.encode()).hexdigest()

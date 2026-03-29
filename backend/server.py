@@ -6,9 +6,6 @@ import os
 import json
 import logging
 from pathlib import Path
-from pydantic import BaseModel, Field
-from typing import List
-import uuid
 from datetime import datetime
 
 
@@ -100,15 +97,6 @@ app = FastAPI(lifespan=lifespan)
 api_router = APIRouter(prefix="/api")
 
 
-class StatusCheck(BaseModel):
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    client_name: str
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
-
-class StatusCheckCreate(BaseModel):
-    client_name: str
-
-
 @api_router.get("/")
 async def root():
     return {"message": "Hello World"}
@@ -130,22 +118,6 @@ async def health_check():
     health["services"]["telegram_bot"] = "running" if get_bot_app() else "stopped"
 
     return health
-
-@api_router.post("/status", response_model=StatusCheck)
-async def create_status_check(input: StatusCheckCreate):
-    from services.database import get_db
-    db = get_db()
-    status_dict = input.dict()
-    status_obj = StatusCheck(**status_dict)
-    await db.status_checks.insert_one(status_obj.dict())
-    return status_obj
-
-@api_router.get("/status", response_model=List[StatusCheck])
-async def get_status_checks():
-    from services.database import get_db
-    db = get_db()
-    status_checks = await db.status_checks.find().to_list(1000)
-    return [StatusCheck(**sc) for sc in status_checks]
 
 
 # Include routers

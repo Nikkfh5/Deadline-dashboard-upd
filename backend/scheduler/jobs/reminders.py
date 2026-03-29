@@ -56,19 +56,11 @@ async def reminders_job():
             if not deadlines:
                 continue
 
-            # Check which ones we already reminded about
             for d in deadlines:
                 reminder_key = f"{d['id']}_{minutes_before}"
 
-                already_sent = await db.reminders_sent.find_one({
-                    "reminder_key": reminder_key,
-                })
-                if already_sent:
-                    continue
-
-                # Send reminder
-                sent = await _send_reminder(user, d, minutes_before)
-                if sent:
+                # Insert first to claim the slot (atomic dedup)
+                try:
                     await db.reminders_sent.insert_one({
                         "reminder_key": reminder_key,
                         "user_id": user_id,
@@ -76,6 +68,15 @@ async def reminders_job():
                         "minutes_before": minutes_before,
                         "sent_at": now,
                     })
+                except Exception:
+                    # Already claimed by another run
+                    continue
+
+                sent = await _send_reminder(user, d, minutes_before)
+                if not sent:
+                    # Failed to send, remove claim so it can retry next cycle
+                    await db.reminders_sent.delete_one({"reminder_key": reminder_key})
+                else:
                     total_sent += 1
 
     if total_sent:
