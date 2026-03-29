@@ -688,10 +688,10 @@ const DeadlineTracker = () => {
                   </div>
                   
                   <div className="flex gap-3 pt-4">
-                    <Button 
+                    <Button
                       onClick={handleSaveDeadline}
-                      className="flex-1 bg-slate-700 hover:bg-slate-800"
-                      disabled={!formData.name.trim() || !formData.task.trim() || !formData.dueDate || 
+                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white disabled:bg-slate-600 disabled:text-slate-400 disabled:opacity-50"
+                      disabled={!formData.name.trim() || !formData.task.trim() || !formData.dueDate ||
                                (formData.isRecurring && formData.intervalDays === 'custom' && !formData.customDays.trim())}
                     >
                       {editingDeadline ? 'Save Changes' : 'Add Deadline'}
