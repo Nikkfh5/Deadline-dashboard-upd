@@ -100,7 +100,10 @@ async def _process_wiki_url(update, url: str, user: dict):
 
 def build_add_wiki_conversation() -> ConversationHandler:
     return ConversationHandler(
-        entry_points=[CommandHandler("add_wiki", add_wiki_command)],
+        entry_points=[
+            CommandHandler("add_wiki", add_wiki_command),
+            MessageHandler(filters.Text(["Добавить wiki"]), add_wiki_command),
+        ],
         states={
             WAITING_WIKI_URL: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, wiki_url_received),

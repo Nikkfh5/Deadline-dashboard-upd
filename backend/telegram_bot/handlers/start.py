@@ -81,20 +81,12 @@ async def reply_keyboard_handler(update: Update, context: ContextTypes.DEFAULT_T
     """Handle reply keyboard button presses."""
     text = update.message.text
 
-    if text == "Добавить дедлайн":
-        from telegram_bot.handlers.add_deadline import add_command
-        await add_command(update, context)
-    elif text == "Мои дедлайны":
+    # "Добавить дедлайн", "Добавить канал", "Добавить wiki"
+    # handled by ConversationHandler entry_points directly
+
+    if text == "Мои дедлайны":
         from telegram_bot.handlers.deadlines import my_deadlines_command
         await my_deadlines_command(update, context)
-    elif text == "Добавить канал":
-        from telegram_bot.handlers.channels import add_channel_command
-        context.args = []
-        await add_channel_command(update, context)
-    elif text == "Добавить wiki":
-        from telegram_bot.handlers.wiki import add_wiki_command
-        context.args = []
-        await add_wiki_command(update, context)
     elif text == "Мои источники":
         await _show_all_sources(update, context)
     elif text == "Настройки":

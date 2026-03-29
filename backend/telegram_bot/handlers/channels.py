@@ -194,7 +194,10 @@ async def _process_channel_link(update, context, raw_text: str, user: dict):
 
 def build_add_channel_conversation() -> ConversationHandler:
     return ConversationHandler(
-        entry_points=[CommandHandler("add_channel", add_channel_command)],
+        entry_points=[
+            CommandHandler("add_channel", add_channel_command),
+            MessageHandler(filters.Text(["Добавить канал"]), add_channel_command),
+        ],
         states={
             WAITING_CHANNEL_LINK: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, channel_link_received),

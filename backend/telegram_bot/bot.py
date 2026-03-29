@@ -52,7 +52,7 @@ async def start_bot():
     ), group=1)
 
     # Reply keyboard buttons — must be LAST to not intercept conversation text
-    KEYBOARD_TEXTS = {"Добавить дедлайн", "Мои дедлайны", "Добавить канал", "Добавить wiki", "Мои источники", "Дашборд", "Настройки"}
+    KEYBOARD_TEXTS = {"Мои дедлайны", "Мои источники", "Дашборд", "Настройки"}
     _app.add_handler(MessageHandler(
         filters.TEXT & filters.Regex(f"^({'|'.join(KEYBOARD_TEXTS)})$"),
         reply_keyboard_handler,

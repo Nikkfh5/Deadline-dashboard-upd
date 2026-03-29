@@ -229,7 +229,10 @@ async def cancel_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 def build_add_deadline_conversation() -> ConversationHandler:
     """Build and return the ConversationHandler for /add."""
     return ConversationHandler(
-        entry_points=[CommandHandler("add", add_command)],
+        entry_points=[
+            CommandHandler("add", add_command),
+            MessageHandler(filters.Text(["Добавить дедлайн"]), add_command),
+        ],
         states={
             NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, subject_received)],
             TASK: [MessageHandler(filters.TEXT & ~filters.COMMAND, task_received)],
