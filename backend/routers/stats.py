@@ -110,11 +110,19 @@ async def get_stats(token: str = Query(...)):
         busiest_day = mongo_dow_to_name.get(busiest_docs[0]["_id"], "?")
         busiest_count = busiest_docs[0]["count"]
 
+    # Completed this week
+    week_ago = now - timedelta(days=7)
+    completed_this_week = await db.completions.count_documents({
+        "user_id": user_id,
+        "completed_at": {"$gte": week_ago},
+    })
+
     return {
         "total": total,
         "upcoming": upcoming,
         "overdue": overdue,
         "rescheduled": rescheduled,
+        "completed_this_week": completed_this_week,
         "by_source": by_source,
         "week": week_data,
         "busiest_day": busiest_day,

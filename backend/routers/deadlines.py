@@ -85,7 +85,21 @@ async def update_deadline(deadline_id: str, data: DeadlineUpdate, token: str = Q
 async def delete_deadline(deadline_id: str, token: str = Query(...)):
     user = await get_user_by_token(token)
     db = get_db()
-    result = await db.deadlines.delete_one({"id": deadline_id, "user_id": str(user["_id"])})
-    if result.deleted_count == 0:
+    user_id = str(user["_id"])
+
+    # Find before deleting to record completion
+    deadline = await db.deadlines.find_one({"id": deadline_id, "user_id": user_id})
+    if not deadline:
         raise HTTPException(status_code=404, detail="Deadline not found")
+
+    await db.deadlines.delete_one({"id": deadline_id, "user_id": user_id})
+
+    # Record as completed
+    await db.completions.insert_one({
+        "user_id": user_id,
+        "deadline_name": deadline.get("name", ""),
+        "deadline_task": deadline.get("task", ""),
+        "completed_at": datetime.utcnow(),
+    })
+
     return {"deleted": True}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BarChart3, TrendingUp, AlertTriangle, Calendar, Flame, Clock } from 'lucide-react';
+import { BarChart3, TrendingUp, AlertTriangle, Calendar, Flame, CheckCircle2 } from 'lucide-react';
 import { Card } from './ui/card';
 import { fetchStats, hasToken } from '../services/api';
 
@@ -49,10 +49,25 @@ const StatsPanel = ({ refreshKey = 0 }) => {
           <div className="text-sm text-slate-500 dark:text-slate-400">Просрочено</div>
         </Card>
         <Card className="p-4 text-center bg-white dark:bg-slate-800">
-          <div className="text-2xl font-bold text-amber-500">{stats.rescheduled}</div>
-          <div className="text-sm text-slate-500 dark:text-slate-400">Перенесено</div>
+          <div className="text-2xl font-bold text-green-500 flex items-center justify-center gap-1">
+            <CheckCircle2 className="w-5 h-5" />
+            {stats.completed_this_week || 0}
+          </div>
+          <div className="text-sm text-slate-500 dark:text-slate-400">Выполнено за неделю</div>
         </Card>
       </div>
+
+      {/* Motivation */}
+      {(stats.completed_this_week || 0) > 0 && (
+        <div className="mb-6 text-center">
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            {stats.completed_this_week >= 10 ? 'Невероятная продуктивность!' :
+             stats.completed_this_week >= 5 ? 'Отличная работа, так держать!' :
+             stats.completed_this_week >= 3 ? 'Хороший темп!' :
+             'Начало положено!'}
+          </p>
+        </div>
+      )}
 
       {/* Week chart + busiest day */}
       <Card className="p-4 bg-white dark:bg-slate-800 mb-4">
