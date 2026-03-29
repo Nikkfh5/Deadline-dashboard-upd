@@ -275,15 +275,15 @@ async def list_channels_command(update: Update, context: ContextTypes.DEFAULT_TY
         await msg.reply_text("Нет отслеживаемых каналов.")
         return
 
-    lines = ["Отслеживаемые каналы:\n"]
+    lines = ["<b>Отслеживаемые каналы:</b>\n"]
     for s in sources:
         name = s.get("display_name", s["identifier"])
         identifier = s.get("identifier", "")
-        status = "+" if s.get("joined") else "..."
-        link = ""
+        status = "✅" if s.get("joined") else "⏳"
         if identifier.startswith("@"):
-            link = f" | https://t.me/{identifier[1:]}"
-        lines.append(f"[{status}] {name}{link}")
+            url = f"https://t.me/{identifier[1:]}"
+            lines.append(f'{status} <a href="{url}">{name}</a>')
+        else:
+            lines.append(f"{status} {name}")
 
-    lines.append("\n[+] = подключён, [...] = подключается")
-    await msg.reply_text("\n".join(lines), disable_web_page_preview=True)
+    await msg.reply_text("\n".join(lines), parse_mode="HTML", disable_web_page_preview=True)

@@ -181,9 +181,13 @@ async def list_wikis_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await msg.reply_text("Нет отслеживаемых wiki-страниц.")
         return
 
-    lines = ["Отслеживаемые wiki-страницы:\n"]
+    lines = ["<b>Отслеживаемые wiki:</b>\n"]
     for s in sources:
         name = s.get("display_name", s["identifier"])
-        lines.append(f"- {name}")
+        url = s.get("identifier", "")
+        if url.startswith("http"):
+            lines.append(f'📄 <a href="{url}">{name}</a>')
+        else:
+            lines.append(f"📄 {name}")
 
-    await msg.reply_text("\n".join(lines))
+    await msg.reply_text("\n".join(lines), parse_mode="HTML", disable_web_page_preview=True)
