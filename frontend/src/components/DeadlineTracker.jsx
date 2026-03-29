@@ -400,11 +400,6 @@ const DeadlineTracker = () => {
     }
   };
 
-  const truncateText = (text, maxLength = 25) => {
-    if (text.length <= maxLength) return text;
-    return text.substring(0, maxLength) + '...';
-  };
-
   // Helper function to render individual deadline card
   const renderDeadlineCard = (deadline, isRegularSection) => {
     const timeLeft = calculateTimeLeft(deadline.dueDate);

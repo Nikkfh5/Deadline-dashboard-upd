@@ -26,7 +26,7 @@ const DeadlineCard = ({ deadline, timeLeft, progressColor, progressPercentage, i
         <DropdownMenuTrigger asChild>
           <button
             onClick={(e) => e.stopPropagation()}
-            className="absolute -top-2 -right-2 w-6 h-6 bg-slate-600 hover:bg-slate-700 text-white rounded-full flex items-center justify-center text-xs transition-colors duration-200 shadow-md"
+            className="absolute -top-2 -right-2 w-6 h-6 bg-primary hover:bg-primary/80 text-primary-foreground rounded-full flex items-center justify-center text-xs transition-colors duration-200 shadow-md"
           >
             <MoreVertical className="w-3 h-3" />
           </button>
