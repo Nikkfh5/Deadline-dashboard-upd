@@ -34,6 +34,12 @@ def _set_cached_profile(channel_id: int, context: str):
         expired = [k for k, v in _channel_profiles.items() if v["ts"] < cutoff]
         for k in expired:
             del _channel_profiles[k]
+        # If still over 500 after TTL eviction, drop the oldest 10%
+        if len(_channel_profiles) > 500:
+            to_evict = max(1, len(_channel_profiles) // 10)
+            oldest_keys = sorted(_channel_profiles, key=lambda k: _channel_profiles[k]["ts"])[:to_evict]
+            for k in oldest_keys:
+                del _channel_profiles[k]
 
 
 def setup_handlers(client: TelegramClient):

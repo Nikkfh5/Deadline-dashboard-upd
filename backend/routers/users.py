@@ -27,8 +27,14 @@ def _user_from_doc(doc: dict) -> User:
 
 
 @router.post("/register", response_model=User)
-async def register_user(data: UserCreate):
+async def register_user(
+    data: UserCreate,
+    x_internal_key: Optional[str] = Header(None, alias="X-Internal-Key"),
+):
     """Called by the TG bot internally. Returns full user with token."""
+    # Validate internal API key (skip in dev mode when key is not configured)
+    if INTERNAL_API_KEY and x_internal_key != INTERNAL_API_KEY:
+        raise HTTPException(status_code=403, detail="Invalid internal API key")
     db = get_db()
     existing = await db.users.find_one({"telegram_id": data.telegram_id})
     if existing:
@@ -57,8 +63,13 @@ class UserPublic(UserCreate):
 
 
 @router.get("/by-telegram/{telegram_id}", response_model=UserPublic)
-async def get_user_by_telegram(telegram_id: int):
-    """Public endpoint — returns user info WITHOUT dashboard_token."""
+async def get_user_by_telegram(
+    telegram_id: int,
+    x_internal_key: Optional[str] = Header(None, alias="X-Internal-Key"),
+):
+    """Internal endpoint — returns user info WITHOUT dashboard_token."""
+    if INTERNAL_API_KEY and x_internal_key != INTERNAL_API_KEY:
+        raise HTTPException(status_code=403, detail="Invalid internal API key")
     db = get_db()
     doc = await db.users.find_one({"telegram_id": telegram_id})
     if not doc:

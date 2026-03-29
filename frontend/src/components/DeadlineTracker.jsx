@@ -216,7 +216,7 @@ const DeadlineTracker = () => {
   const formatDateTimeForInput = (utcDate) => {
     const date = new Date(utcDate);
     // Convert to Moscow timezone for display in form
-    const madridTime = new Intl.DateTimeFormat('sv-SE', {
+    const moscowTime = new Intl.DateTimeFormat('sv-SE', {
       timeZone: 'Europe/Moscow',
       year: 'numeric',
       month: '2-digit',
@@ -225,13 +225,13 @@ const DeadlineTracker = () => {
       minute: '2-digit'
     }).format(date).replace(' ', 'T');
     
-    return madridTime;
+    return moscowTime;
   };
 
   // Helper function to convert Moscow datetime to UTC for storage
-  const madridToUTC = (madridDateTimeLocal) => {
+  const moscowToUTC = (moscowDateTimeLocal) => {
     // For simplicity, treat input as local time and convert to UTC
-    return new Date(madridDateTimeLocal).toISOString();
+    return new Date(moscowDateTimeLocal).toISOString();
   };
 
   // Function to handle recurring deadline repetition
@@ -295,7 +295,7 @@ const DeadlineTracker = () => {
     if (!formData.name.trim() || !formData.task.trim() || !formData.dueDate) return;
     
     const now = new Date();
-    const utcDueDate = madridToUTC(formData.dueDate);
+    const utcDueDate = moscowToUTC(formData.dueDate);
 
     // Get the correct interval value
     const getIntervalDays = () => {

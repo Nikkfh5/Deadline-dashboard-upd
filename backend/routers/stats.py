@@ -6,6 +6,11 @@ from services.auth import get_user_by_token
 
 router = APIRouter(prefix="/api/stats", tags=["stats"])
 
+DAY_NAMES_RU = {
+    1: "Пн", 2: "Вт", 3: "Ср",
+    4: "Чт", 5: "Пт", 6: "Сб", 7: "Вс",
+}
+
 
 @router.get("")
 async def get_stats(token: str = Query(...)):
@@ -14,70 +19,96 @@ async def get_stats(token: str = Query(...)):
     user_id = str(user["_id"])
     now = datetime.utcnow()
 
-    # All deadlines for this user
-    all_deadlines = await db.deadlines.find({"user_id": user_id}).to_list(5000)
-
-    total = len(all_deadlines)
-    upcoming = 0
-    overdue = 0
-    completed = 0  # past deadlines that aren't overdue markers
-    by_source = {"manual": 0, "telegram": 0, "wiki": 0}
-    rescheduled = 0
-
-    # Next 7 days: count per day
     week_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    days_map = {}
+    week_end = week_start + timedelta(days=7)
+
+    # Single aggregation pipeline using $facet
+    pipeline = [
+        {"$match": {"user_id": user_id}},
+        {"$facet": {
+            # Counts
+            "counts": [
+                {"$group": {
+                    "_id": None,
+                    "total": {"$sum": 1},
+                    "upcoming": {"$sum": {"$cond": [{"$gt": ["$due_date", now]}, 1, 0]}},
+                    "overdue": {"$sum": {"$cond": [
+                        {"$and": [
+                            {"$ne": ["$due_date", None]},
+                            {"$lte": ["$due_date", now]},
+                        ]}, 1, 0,
+                    ]}},
+                    "rescheduled": {"$sum": {"$cond": [{"$eq": ["$is_postponed", True]}, 1, 0]}},
+                }},
+            ],
+            # Source breakdown
+            "by_source": [
+                {"$group": {
+                    "_id": {"$ifNull": ["$source.type", "manual"]},
+                    "count": {"$sum": 1},
+                }},
+            ],
+            # Weekly breakdown (next 7 days)
+            "week": [
+                {"$match": {
+                    "due_date": {"$gte": week_start, "$lt": week_end},
+                }},
+                {"$group": {
+                    "_id": {"$dateToString": {"format": "%Y-%m-%d", "date": "$due_date"}},
+                    "count": {"$sum": 1},
+                }},
+            ],
+            # Busiest day of week (future deadlines only)
+            "busiest": [
+                {"$match": {"due_date": {"$gt": now}}},
+                {"$group": {
+                    "_id": {"$dayOfWeek": "$due_date"},  # 1=Sun..7=Sat
+                    "count": {"$sum": 1},
+                }},
+                {"$sort": {"count": -1}},
+                {"$limit": 1},
+            ],
+        }},
+    ]
+
+    result = await db.deadlines.aggregate(pipeline).to_list(1)
+    facets = result[0] if result else {}
+
+    # Extract counts
+    counts_doc = (facets.get("counts") or [{}])[0] if facets.get("counts") else {}
+    total = counts_doc.get("total", 0)
+    upcoming = counts_doc.get("upcoming", 0)
+    overdue = counts_doc.get("overdue", 0)
+    rescheduled = counts_doc.get("rescheduled", 0)
+
+    # Extract source breakdown
+    by_source = {"manual": 0, "telegram": 0, "wiki": 0}
+    for doc in facets.get("by_source", []):
+        src = doc["_id"]
+        by_source[src] = by_source.get(src, 0) + doc["count"]
+
+    # Build week data
+    week_counts = {doc["_id"]: doc["count"] for doc in facets.get("week", [])}
+    week_data = []
     for i in range(7):
         day = week_start + timedelta(days=i)
-        days_map[day.strftime("%Y-%m-%d")] = 0
+        day_key = day.strftime("%Y-%m-%d")
+        # Monday=0..Sunday=6 via isoweekday (1..7)
+        day_name = DAY_NAMES_RU.get(day.isoweekday(), day.strftime("%a"))
+        week_data.append({
+            "day": f"{day_name} {day.strftime('%d.%m')}",
+            "count": week_counts.get(day_key, 0),
+        })
 
+    # Busiest day
+    # MongoDB $dayOfWeek: 1=Sun, 2=Mon, ..., 7=Sat
+    mongo_dow_to_name = {1: "Вс", 2: "Пн", 3: "Вт", 4: "Ср", 5: "Чт", 6: "Пт", 7: "Сб"}
     busiest_day = None
     busiest_count = 0
-
-    for d in all_deadlines:
-        due = d.get("due_date")
-        source_type = d.get("source", {}).get("type", "manual")
-        by_source[source_type] = by_source.get(source_type, 0) + 1
-
-        if d.get("is_postponed"):
-            rescheduled += 1
-
-        if due:
-            if due > now:
-                upcoming += 1
-            else:
-                overdue += 1
-
-            # Week chart
-            day_key = due.strftime("%Y-%m-%d")
-            if day_key in days_map:
-                days_map[day_key] += 1
-
-    # Find busiest day overall
-    day_counts = {}
-    for d in all_deadlines:
-        due = d.get("due_date")
-        if due and due > now:
-            dk = due.strftime("%A")  # day of week
-            day_counts[dk] = day_counts.get(dk, 0) + 1
-
-    if day_counts:
-        busiest_day = max(day_counts, key=day_counts.get)
-        busiest_count = day_counts[busiest_day]
-
-    # Week data as list for frontend chart
-    week_data = []
-    day_names_ru = {
-        "Monday": "Пн", "Tuesday": "Вт", "Wednesday": "Ср",
-        "Thursday": "Чт", "Friday": "Пт", "Saturday": "Сб", "Sunday": "Вс",
-    }
-    for date_str, count in days_map.items():
-        dt = datetime.strptime(date_str, "%Y-%m-%d")
-        day_name = day_names_ru.get(dt.strftime("%A"), dt.strftime("%a"))
-        week_data.append({
-            "day": f"{day_name} {dt.strftime('%d.%m')}",
-            "count": count,
-        })
+    busiest_docs = facets.get("busiest", [])
+    if busiest_docs:
+        busiest_day = mongo_dow_to_name.get(busiest_docs[0]["_id"], "?")
+        busiest_count = busiest_docs[0]["count"]
 
     return {
         "total": total,

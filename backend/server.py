@@ -160,7 +160,8 @@ app.include_router(users_router)
 app.include_router(sources_router)
 app.include_router(stats_router)
 
-cors_origins = os.environ.get("CORS_ORIGINS", "*").split(",")
+_default_frontend = os.environ.get("FRONTEND_URL", "http://localhost:5173")
+cors_origins = os.environ.get("CORS_ORIGINS", _default_frontend).split(",")
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,

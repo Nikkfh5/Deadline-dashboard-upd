@@ -9,6 +9,8 @@ from services.database import get_db
 
 logger = logging.getLogger(__name__)
 
+DEDUPE_SIMILARITY_THRESHOLD = 0.6
+
 
 def content_hash(text: str) -> str:
     return hashlib.sha256(text.encode()).hexdigest()
@@ -51,7 +53,7 @@ async def save_extracted_deadlines(
 
     for deadline_data in extracted:
         confidence = deadline_data.get("confidence", 0)
-        if confidence < 0.6:
+        if confidence < DEDUPE_SIMILARITY_THRESHOLD:
             continue
 
         due_date_str = deadline_data.get("due_date")
@@ -130,7 +132,7 @@ async def save_extracted_deadlines(
 
         for existing in candidates:
             ratio = SequenceMatcher(None, existing["task"], doc["task"]).ratio()
-            if ratio >= 0.6:
+            if ratio >= DEDUPE_SIMILARITY_THRESHOLD:
                 # Fuzzy match found
                 existing_due = existing["due_date"]
                 new_due = doc["due_date"]
@@ -152,9 +154,6 @@ async def save_extracted_deadlines(
                         "old_date": existing_due,
                         "new_date": new_due,
                     })
-                    # Update in-memory entry so subsequent docs see the new due_date
-                    existing["due_date"] = new_due
-                    existing["task"] = doc["task"]
                 # else: same date, near-duplicate -> skip
                 matched = True
                 break

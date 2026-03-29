@@ -97,6 +97,9 @@ DATE_PARSE_PROMPT = """Пользователь вводит дату/время
 {{"date": null, "parsed": false}}"""
 
 
+MAX_API_RETRIES = 3
+
+
 class HaikuAnalyzer:
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY", "")
@@ -109,15 +112,15 @@ class HaikuAnalyzer:
     async def _api_call(self, **kwargs) -> str:
         """Call Anthropic API with retry and backoff."""
         last_error = None
-        for attempt in range(3):
+        for attempt in range(MAX_API_RETRIES):
             try:
                 response = await self.client.messages.create(**kwargs)
                 return response.content[0].text.strip()
             except anthropic.APIError as e:
                 last_error = e
-                if attempt < 2:
+                if attempt < MAX_API_RETRIES - 1:
                     await asyncio.sleep(2 ** attempt)
-                    logger.warning(f"Haiku API retry {attempt + 1}/3: {e}")
+                    logger.warning(f"Haiku API retry {attempt + 1}/{MAX_API_RETRIES}: {e}")
         raise last_error
 
     async def analyze_post(self, text: str, channel_name: str = "", channel_context: str = "") -> dict:

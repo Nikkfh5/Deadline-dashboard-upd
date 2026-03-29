@@ -41,14 +41,15 @@ async def reminders_job():
             if minutes_before <= 0:
                 continue
 
-            # Find deadlines due in [now + minutes_before - 5min, now + minutes_before + 5min]
+            # Find deadlines due in [now + minutes_before - 5min, now + minutes_before + 5min)
             # This 10-minute window ensures we catch deadlines even if job runs slightly late
+            # Use $lt (not $lte) on the upper bound to avoid double-firing at boundaries
             window_start = now + timedelta(minutes=minutes_before - 5)
             window_end = now + timedelta(minutes=minutes_before + 5)
 
             deadlines = await db.deadlines.find({
                 "user_id": user_id,
-                "due_date": {"$gte": window_start, "$lte": window_end},
+                "due_date": {"$gte": window_start, "$lt": window_end},
             }).to_list(50)
 
             if not deadlines:
