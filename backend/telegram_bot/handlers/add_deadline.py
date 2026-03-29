@@ -15,6 +15,7 @@ from telegram.ext import (
 
 from services.database import get_db
 from services.haiku_analyzer import get_analyzer
+from telegram_bot.helpers import format_time_left, format_due_date_msk
 from telegram_bot.utils import get_current_user
 
 logger = logging.getLogger(__name__)
@@ -42,26 +43,11 @@ def _confirm_keyboard() -> InlineKeyboardMarkup:
 
 
 def _format_preview(data: dict) -> str:
-    due_utc: datetime = data["due_date"]
-    due_msk = due_utc + timedelta(hours=3)
-    now = datetime.utcnow()
-    diff = due_utc - now
-    days = diff.days
-    hours = diff.seconds // 3600
-
-    if days > 0:
-        time_left = f"{days}д {hours}ч"
-    elif hours > 0:
-        minutes = (diff.seconds % 3600) // 60
-        time_left = f"{hours}ч {minutes}мин"
-    else:
-        minutes = max(diff.seconds // 60, 0)
-        time_left = f"{minutes}мин"
-
+    due_utc = data["due_date"]
     return (
         f"Проверь и подтверди:\n\n"
         f"{data['name']} — {data['task']}\n"
-        f"До: {due_msk.strftime('%d.%m.%Y %H:%M')} МСК (через {time_left})"
+        f"До: {format_due_date_msk(due_utc)} МСК (через {format_time_left(due_utc)})"
     )
 
 
@@ -224,11 +210,10 @@ async def confirm_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     }
     await db.deadlines.insert_one(doc)
 
-    due_moscow = data["due_date"] + timedelta(hours=3)
     await query.edit_message_text(
         f"Дедлайн сохранён!\n\n"
         f"{data['name']} — {data['task']}\n"
-        f"До: {due_moscow.strftime('%d.%m.%Y %H:%M')} (МСК)"
+        f"До: {format_due_date_msk(data['due_date'])} (МСК)"
     )
     context.user_data.pop("add_deadline", None)
     return ConversationHandler.END

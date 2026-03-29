@@ -1,10 +1,11 @@
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, CallbackQueryHandler
 
 from services.database import get_db
+from telegram_bot.helpers import format_time_left, format_due_short_msk
 from telegram_bot.utils import get_current_user
 
 logger = logging.getLogger(__name__)
@@ -66,24 +67,11 @@ async def my_deadlines_command(update: Update, context: ContextTypes.DEFAULT_TYP
     buttons = []
     for d in deadlines:
         due = d["due_date"]
-        due_msk = due + timedelta(hours=3)
-        diff = due - now
-        days = diff.days
-        hours = diff.seconds // 3600
+        time_str = format_time_left(due)
+        date_str = format_due_short_msk(due)
 
         source_type = d.get("source", {}).get("type", "manual")
         icon = SOURCE_ICONS.get(source_type, "?")
-
-        if days > 0:
-            time_str = f"{days}д {hours}ч"
-        elif hours > 0:
-            minutes = (diff.seconds % 3600) // 60
-            time_str = f"{hours}ч {minutes}мин"
-        else:
-            minutes = diff.seconds // 60
-            time_str = f"{minutes}мин"
-
-        date_str = due_msk.strftime("%d.%m %H:%M")
         confidence = d.get("confidence")
         conf_str = f" ({int(confidence * 100)}%)" if confidence else ""
 
