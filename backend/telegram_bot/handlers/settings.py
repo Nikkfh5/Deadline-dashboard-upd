@@ -50,18 +50,39 @@ async def share_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "created_at": datetime.utcnow(),
     })
 
-    summary_lines = []
-    if channels:
-        summary_lines.append(f"Каналы: {', '.join(channels)}")
-    if wikis:
-        summary_lines.append(f"Wiki: {len(wikis)} шт.")
-    summary = "\n".join(summary_lines)
+    lines = [f"Код для одногруппников:\n\n  /join <code>{code}</code>\n"]
+
+    channel_sources = [s for s in sources if s["type"] == "telegram_channel"]
+    wiki_sources = [s for s in sources if s["type"] == "wiki_page"]
+
+    if channel_sources:
+        lines.append("<b>Каналы:</b>")
+        for s in channel_sources:
+            name = s.get("display_name", s["identifier"])
+            identifier = s.get("identifier", "")
+            if identifier.startswith("@"):
+                url = f"https://t.me/{identifier[1:]}"
+                lines.append(f'• <a href="{url}">{name}</a>')
+            elif identifier.startswith("invite:"):
+                url = f"https://t.me/+{identifier[7:]}"
+                lines.append(f'• <a href="{url}">{name}</a>')
+            else:
+                lines.append(f"• {name}")
+
+    if wiki_sources:
+        lines.append("\n<b>Wiki:</b>")
+        for s in wiki_sources:
+            name = s.get("display_name", s["identifier"])
+            url = s.get("identifier", "")
+            if url.startswith("http"):
+                lines.append(f'• <a href="{url}">{name}</a>')
+            else:
+                lines.append(f"• {name}")
+
+    lines.append("\nКод действует 7 дней.")
 
     await update.message.reply_text(
-        f"Код для одногруппников:\n\n"
-        f"  /join {code}\n\n"
-        f"Что включено:\n{summary}\n\n"
-        f"Код действует 7 дней."
+        "\n".join(lines), parse_mode="HTML", disable_web_page_preview=True
     )
     logger.info(f"User {update.effective_user.id} created share code {code}")
 
