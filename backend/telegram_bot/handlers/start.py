@@ -7,8 +7,63 @@ from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ContextTypes, filters, MessageHandler
 
 from services.database import get_db
+from telegram_bot.utils import get_current_user
 
 logger = logging.getLogger(__name__)
+
+
+async def _show_all_sources(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show channels and wikis in one message."""
+    user = await get_current_user(update)
+    if not user:
+        return
+
+    db = get_db()
+    user_id = str(user["_id"])
+
+    channels = await db.sources.find({
+        "user_id": user_id, "type": "telegram_channel", "is_active": True,
+    }).to_list(100)
+
+    wikis = await db.sources.find({
+        "user_id": user_id, "type": "wiki_page", "is_active": True,
+    }).to_list(100)
+
+    if not channels and not wikis:
+        await update.message.reply_text("Нет отслеживаемых источников.")
+        return
+
+    lines = []
+
+    if channels:
+        lines.append("<b>Каналы:</b>\n")
+        for s in channels:
+            name = s.get("display_name", s["identifier"])
+            identifier = s.get("identifier", "")
+            if identifier.startswith("@"):
+                url = f"https://t.me/{identifier[1:]}"
+                lines.append(f'• <a href="{url}">{name}</a>')
+            elif identifier.startswith("invite:"):
+                url = f"https://t.me/+{identifier[7:]}"
+                lines.append(f'• <a href="{url}">{name}</a>')
+            else:
+                lines.append(f"• {name}")
+
+    if wikis:
+        if channels:
+            lines.append("")
+        lines.append("<b>Wiki:</b>\n")
+        for s in wikis:
+            name = s.get("display_name", s["identifier"])
+            url = s.get("identifier", "")
+            if url.startswith("http"):
+                lines.append(f'• <a href="{url}">{name}</a>')
+            else:
+                lines.append(f"• {name}")
+
+    await update.message.reply_text(
+        "\n".join(lines), parse_mode="HTML", disable_web_page_preview=True
+    )
 
 
 REPLY_KEYBOARD = ReplyKeyboardMarkup(
@@ -41,10 +96,7 @@ async def reply_keyboard_handler(update: Update, context: ContextTypes.DEFAULT_T
         context.args = []
         await add_wiki_command(update, context)
     elif text == "Мои источники":
-        from telegram_bot.handlers.channels import list_channels_command
-        from telegram_bot.handlers.wiki import list_wikis_command
-        await list_channels_command(update, context)
-        await list_wikis_command(update, context)
+        await _show_all_sources(update, context)
     elif text == "Дашборд":
         await dashboard_command(update, context)
 
