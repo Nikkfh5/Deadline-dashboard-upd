@@ -14,7 +14,7 @@ const DeadlineModal = ({ isOpen, onOpenChange, editingDeadline, formData, setFor
       <DialogTrigger asChild>
         <Button
           onClick={onTriggerClick}
-          className="bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 hover:scale-105"
+          className="bg-slate-700 hover:bg-slate-800 dark:bg-slate-600 dark:hover:bg-slate-500 text-white px-6 py-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 hover:scale-105"
         >
           <Plus className="w-5 h-5 mr-2" />
           Add Deadline
@@ -22,13 +22,13 @@ const DeadlineModal = ({ isOpen, onOpenChange, editingDeadline, formData, setFor
       </DialogTrigger>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-foreground">
+          <DialogTitle className="text-slate-700 dark:text-slate-300">
             {editingDeadline ? 'Edit Deadline' : 'Add New Deadline'}
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4 mt-4">
           <div>
-            <Label htmlFor="name" className="text-foreground">Name</Label>
+            <Label htmlFor="name" className="text-slate-700 dark:text-slate-300">Name</Label>
             <Input
               id="name"
               value={formData.name}
@@ -38,7 +38,7 @@ const DeadlineModal = ({ isOpen, onOpenChange, editingDeadline, formData, setFor
             />
           </div>
           <div>
-            <Label htmlFor="task" className="text-foreground">Task / Description</Label>
+            <Label htmlFor="task" className="text-slate-700 dark:text-slate-300">Task / Description</Label>
             <Textarea
               id="task"
               value={formData.task}
@@ -48,7 +48,7 @@ const DeadlineModal = ({ isOpen, onOpenChange, editingDeadline, formData, setFor
             />
           </div>
           <div>
-            <Label htmlFor="dueDate" className="text-foreground">Due Date & Time (Moscow)</Label>
+            <Label htmlFor="dueDate" className="text-slate-700 dark:text-slate-300">Due Date & Time (Moscow)</Label>
             <Input
               id="dueDate"
               type="datetime-local"
@@ -66,14 +66,14 @@ const DeadlineModal = ({ isOpen, onOpenChange, editingDeadline, formData, setFor
                 checked={formData.isRecurring}
                 onCheckedChange={(checked) => setFormData(prev => ({ ...prev, isRecurring: checked }))}
               />
-              <Label htmlFor="isRecurring" className="text-foreground">
+              <Label htmlFor="isRecurring" className="text-slate-700 dark:text-slate-300">
                 Make temporary (recurring)
               </Label>
             </div>
 
             {formData.isRecurring && (
               <div>
-                <Label htmlFor="intervalDays" className="text-foreground">Period (days)</Label>
+                <Label htmlFor="intervalDays" className="text-slate-700 dark:text-slate-300">Period (days)</Label>
                 <Select
                   value={formData.intervalDays}
                   onValueChange={(value) => setFormData(prev => ({ ...prev, intervalDays: value }))}
@@ -106,7 +106,7 @@ const DeadlineModal = ({ isOpen, onOpenChange, editingDeadline, formData, setFor
           <div className="flex gap-3 pt-4">
             <Button
               onClick={onSave}
-              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white disabled:bg-muted disabled:text-muted-foreground disabled:opacity-50"
+              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white disabled:bg-slate-600 disabled:text-slate-400 disabled:opacity-50"
               disabled={!formData.name.trim() || !formData.task.trim() || !formData.dueDate ||
                        (formData.isRecurring && formData.intervalDays === 'custom' && !formData.customDays.trim())}
             >

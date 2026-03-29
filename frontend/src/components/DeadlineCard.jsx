@@ -18,7 +18,7 @@ const DeadlineCard = ({ deadline, timeLeft, progressColor, progressPercentage, i
   return (
     <Card
       key={deadline.id}
-      className="relative p-6 bg-card shadow-md hover:shadow-xl hover:ring-2 hover:ring-ring hover:ring-offset-2 hover:ring-offset-background transition-all duration-200 hover:scale-105 cursor-pointer border border-border"
+      className="relative p-6 bg-white dark:bg-slate-800 shadow-md hover:shadow-xl hover:ring-2 hover:ring-slate-300 dark:hover:ring-slate-600 hover:ring-offset-2 dark:hover:ring-offset-slate-900 transition-all duration-200 hover:scale-105 cursor-pointer border border-slate-200 dark:border-slate-700"
       onClick={() => onEdit(deadline)}
     >
       {/* 3-dot menu */}
@@ -26,7 +26,7 @@ const DeadlineCard = ({ deadline, timeLeft, progressColor, progressPercentage, i
         <DropdownMenuTrigger asChild>
           <button
             onClick={(e) => e.stopPropagation()}
-            className="absolute -top-2 -right-2 w-6 h-6 bg-primary hover:bg-primary/80 text-primary-foreground rounded-full flex items-center justify-center text-xs transition-colors duration-200 shadow-md"
+            className="absolute -top-2 -right-2 w-6 h-6 bg-slate-600 hover:bg-slate-700 text-white rounded-full flex items-center justify-center text-xs transition-colors duration-200 shadow-md"
           >
             <MoreVertical className="w-3 h-3" />
           </button>
@@ -98,16 +98,16 @@ const DeadlineCard = ({ deadline, timeLeft, progressColor, progressPercentage, i
           color={progressColor}
           isPulsing={isPulsing}
         >
-          <Clock className="w-6 h-6 text-muted-foreground mb-1" />
+          <Clock className="w-6 h-6 text-slate-600 dark:text-slate-400 mb-1" />
           <div className="text-center">
-            <div className="text-xs font-mono text-foreground">
+            <div className="text-xs font-mono text-slate-700 dark:text-slate-300">
               {timeLeft.isOverdue ? (
                 <span className="text-red-600 font-semibold">OVERDUE</span>
               ) : (
                 `${timeLeft.days}d ${timeLeft.hours}h`
               )}
             </div>
-            <div className="text-xs font-mono text-muted-foreground">
+            <div className="text-xs font-mono text-slate-500 dark:text-slate-400">
               {timeLeft.isOverdue ? '' : `${timeLeft.minutes}m ${timeLeft.seconds}s`}
             </div>
           </div>
@@ -115,11 +115,11 @@ const DeadlineCard = ({ deadline, timeLeft, progressColor, progressPercentage, i
 
         {/* Name and Task */}
         <div className="text-center">
-          <h3 className="font-semibold text-card-foreground text-lg">{deadline.name}</h3>
+          <h3 className="font-semibold text-slate-800 dark:text-slate-100 text-lg">{deadline.name}</h3>
           {deadline.task && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <p className="text-xs text-muted-foreground mt-1 cursor-help">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 cursor-help">
                   {truncateText(deadline.task)}
                 </p>
               </TooltipTrigger>
@@ -128,7 +128,7 @@ const DeadlineCard = ({ deadline, timeLeft, progressColor, progressPercentage, i
               </TooltipContent>
             </Tooltip>
           )}
-          <p className="text-xs text-muted-foreground mt-1">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
             {new Date(deadline.dueDate).toLocaleDateString('ru-RU', {
               timeZone: 'Europe/Moscow',
               month: 'short',

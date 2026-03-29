@@ -426,18 +426,18 @@ const DeadlineTracker = () => {
 
   return (
     <TooltipProvider>
-      <div className="min-h-screen bg-background p-6 transition-colors">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 p-6 transition-colors">
         <div className="max-w-7xl mx-auto">
           {/* Header */}
           <div className="flex justify-between items-center mb-12">
             <div className="flex-1" />
-            <h1 className="text-4xl font-bold text-foreground tracking-wide">DEADLINES</h1>
+            <h1 className="text-4xl font-bold text-slate-800 dark:text-slate-100 tracking-wide">DEADLINES</h1>
             <div className="flex-1 flex justify-end">
               <Button
                 variant="ghost"
                 size="icon"
                 onClick={() => setDarkMode(!darkMode)}
-                className="text-muted-foreground"
+                className="text-slate-500 dark:text-slate-400"
               >
                 {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
               </Button>
@@ -461,9 +461,9 @@ const DeadlineTracker = () => {
           {/* Deadlines Sections */}
           {deadlines.length === 0 ? (
             <div className="text-center py-16">
-              <Clock className="w-16 h-16 text-muted mx-auto mb-4" />
-              <p className="text-muted-foreground text-lg">Nothing to track yet</p>
-              <p className="text-muted-foreground text-sm mt-2">Add your first deadline to get started</p>
+              <Clock className="w-16 h-16 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
+              <p className="text-slate-500 dark:text-slate-400 text-lg">Nothing to track yet</p>
+              <p className="text-slate-500 dark:text-slate-400 text-sm mt-2">Add your first deadline to get started</p>
             </div>
           ) : (
             <div className="space-y-12">
@@ -474,10 +474,10 @@ const DeadlineTracker = () => {
                   <>
                     {/* Common Deadlines Section - now first */}
                     <div>
-                      <h2 className="text-2xl font-semibold text-foreground mb-6 text-center">Common</h2>
+                      <h2 className="text-2xl font-semibold text-slate-800 dark:text-slate-100 mb-6 text-center">Common</h2>
                       {regular.length === 0 ? (
                         <div className="text-center py-8">
-                          <p className="text-muted-foreground">No common deadlines</p>
+                          <p className="text-slate-500 dark:text-slate-400">No common deadlines</p>
                         </div>
                       ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-8 justify-items-center">
@@ -492,7 +492,7 @@ const DeadlineTracker = () => {
                         <CollapsibleTrigger asChild>
                           <Button
                             variant="ghost"
-                            className="w-full text-2xl font-semibold text-foreground mb-6 hover:bg-accent p-4 flex items-center justify-center gap-2"
+                            className="w-full text-2xl font-semibold text-slate-800 dark:text-slate-100 mb-6 hover:bg-slate-100 dark:hover:bg-slate-800 p-4 flex items-center justify-center gap-2"
                           >
                             Temporary
                             {isTemporaryCollapsed ?
@@ -505,7 +505,7 @@ const DeadlineTracker = () => {
                         <CollapsibleContent className="space-y-4">
                           {recurring.length === 0 ? (
                             <div className="text-center py-8">
-                              <p className="text-muted-foreground">No active temporary deadlines</p>
+                              <p className="text-slate-500 dark:text-slate-400">No active temporary deadlines</p>
                             </div>
                           ) : (
                             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-8 justify-items-center">
