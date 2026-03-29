@@ -9,7 +9,7 @@ from telegram_bot.handlers.channels import remove_channel_command, list_channels
 from telegram_bot.handlers.wiki import remove_wiki_command, list_wikis_command, build_add_wiki_conversation, delete_wiki_button, DEL_WIKI_CB
 from telegram_bot.handlers.deadlines import my_deadlines_command, complete_deadline_button, COMPLETE_DEADLINE_CB
 from telegram_bot.handlers.settings import share_command, join_command
-from telegram_bot.handlers.user_settings import settings_command, settings_callback, SETTINGS_CB
+from telegram_bot.handlers.user_settings import settings_command, settings_callback, custom_reminder_input, SETTINGS_CB
 from telegram_bot.handlers.add_deadline import build_add_deadline_conversation
 
 logger = logging.getLogger(__name__)
@@ -44,6 +44,12 @@ async def start_bot():
     _app.add_handler(CallbackQueryHandler(complete_deadline_button, pattern=f"^{COMPLETE_DEADLINE_CB}"))
     _app.add_handler(CallbackQueryHandler(delete_channel_button, pattern=f"^{DEL_CHANNEL_CB}"))
     _app.add_handler(CallbackQueryHandler(delete_wiki_button, pattern=f"^{DEL_WIKI_CB}"))
+
+    # Custom reminder number input (only fires if awaiting_custom_reminder is set)
+    _app.add_handler(MessageHandler(
+        filters.TEXT & filters.Regex(r"^\d+$"),
+        custom_reminder_input,
+    ), group=1)
 
     # Reply keyboard buttons — must be LAST to not intercept conversation text
     KEYBOARD_TEXTS = {"Добавить дедлайн", "Мои дедлайны", "Добавить канал", "Добавить wiki", "Мои источники", "Дашборд", "Настройки"}
