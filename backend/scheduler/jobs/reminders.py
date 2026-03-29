@@ -50,6 +50,7 @@ async def reminders_job():
             deadlines = await db.deadlines.find({
                 "user_id": user_id,
                 "due_date": {"$gte": window_start, "$lt": window_end},
+                "is_recurring": {"$ne": True},
             }).to_list(50)
 
             if not deadlines:
