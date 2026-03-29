@@ -282,6 +282,9 @@ async def list_channels_command(update: Update, context: ContextTypes.DEFAULT_TY
         if identifier.startswith("@"):
             url = f"https://t.me/{identifier[1:]}"
             lines.append(f'• <a href="{url}">{name}</a>')
+        elif identifier.startswith("invite:"):
+            url = f"https://t.me/+{identifier[7:]}"
+            lines.append(f'• <a href="{url}">{name}</a>')
         else:
             lines.append(f"• {name}")
 
