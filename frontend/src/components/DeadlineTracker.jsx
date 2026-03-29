@@ -112,21 +112,47 @@ const DeadlineTracker = () => {
     return () => clearInterval(timer);
   }, []);
 
-  // Periodic backend sync every 30 seconds
+  // Smart sync: 10s when tab visible, 0 when hidden, instant on tab focus
+  const syncIntervalRef = useRef(null);
+  const doSync = async () => {
+    const serverDeadlines = await fetchDeadlines();
+    if (serverDeadlines && serverDeadlines.length > 0) {
+      const normalized = serverDeadlines.map(normalizeServerDeadline);
+      setDeadlines(prev => {
+        const merged = mergeDeadlines(normalized, prev);
+        if (merged.length === prev.length && merged.every((d, i) => d.id === prev[i]?.id)) return prev;
+        return merged;
+      });
+    }
+  };
+
   useEffect(() => {
     if (!hasToken()) return;
-    const syncInterval = setInterval(async () => {
-      const serverDeadlines = await fetchDeadlines();
-      if (serverDeadlines && serverDeadlines.length > 0) {
-        const normalized = serverDeadlines.map(normalizeServerDeadline);
-        setDeadlines(prev => {
-          const merged = mergeDeadlines(normalized, prev);
-          if (merged.length === prev.length && merged.every((d, i) => d.id === prev[i]?.id)) return prev;
-          return merged;
-        });
+
+    const startPolling = () => {
+      clearInterval(syncIntervalRef.current);
+      syncIntervalRef.current = setInterval(doSync, 10000);
+    };
+    const stopPolling = () => {
+      clearInterval(syncIntervalRef.current);
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        doSync(); // instant sync on tab focus
+        startPolling();
+      } else {
+        stopPolling();
       }
-    }, 30000);
-    return () => clearInterval(syncInterval);
+    };
+
+    document.addEventListener('visibilitychange', onVisibility);
+    if (document.visibilityState === 'visible') startPolling();
+
+    return () => {
+      stopPolling();
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, []);
 
   const saveTimerRef = useRef(null);
