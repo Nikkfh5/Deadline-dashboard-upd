@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Clock, Plus, Moon, Sun, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from './ui/button';
 import { TooltipProvider } from './ui/tooltip';
@@ -121,8 +121,7 @@ const DeadlineTracker = () => {
         const normalized = serverDeadlines.map(normalizeServerDeadline);
         setDeadlines(prev => {
           const merged = mergeDeadlines(normalized, prev);
-          // Skip update if nothing changed
-          if (JSON.stringify(merged) === JSON.stringify(prev)) return prev;
+          if (merged.length === prev.length && merged.every((d, i) => d.id === prev[i]?.id)) return prev;
           return merged;
         });
       }
@@ -130,9 +129,13 @@ const DeadlineTracker = () => {
     return () => clearInterval(syncInterval);
   }, []);
 
+  const saveTimerRef = useRef(null);
   useEffect(() => {
-    // Save to localStorage whenever deadlines change
-    localStorage.setItem('deadlines', JSON.stringify(deadlines));
+    clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      localStorage.setItem('deadlines', JSON.stringify(deadlines));
+    }, 500);
+    return () => clearTimeout(saveTimerRef.current);
   }, [deadlines]);
 
   const calculateTimeLeft = (dueDate) => {
@@ -153,61 +156,22 @@ const DeadlineTracker = () => {
     return { days, hours, minutes, seconds, isOverdue: false, totalMs: diff };
   };
 
-  const getProgressColor = (timeLeft, deadline) => {
-    if (timeLeft.isOverdue) return 'stroke-red-500';
-
-    // For recurring deadlines, calculate progress from lastStartedAt
-    // For non-recurring deadlines, use createdAt as before
+  const getDeadlineMetrics = (timeLeft, deadline) => {
+    if (timeLeft.isOverdue) {
+      return { progressColor: 'stroke-red-500', progressPercentage: 0, isPulsing: true };
+    }
     const now = currentTime.getTime();
     const startTime = deadline.isRecurring && deadline.lastStartedAt
       ? new Date(deadline.lastStartedAt).getTime()
       : new Date(deadline.createdAt).getTime();
     const due = new Date(deadline.dueDate).getTime();
-
     const totalDuration = due - startTime;
-    const elapsed = now - startTime;
-    const progress = totalDuration > 0 ? elapsed / totalDuration : 1;
+    const progress = totalDuration > 0 ? (now - startTime) / totalDuration : 1;
 
-    if (progress < 0.5) return 'stroke-green-500';   // 0-50% elapsed
-    if (progress < 0.9) return 'stroke-yellow-500';  // 50-90% elapsed
-    return 'stroke-red-500';                         // 90%+ elapsed
-  };
-
-  const getProgressPercentage = (timeLeft, deadline) => {
-    if (timeLeft.isOverdue) return 0;
-
-    // For recurring deadlines, calculate progress from lastStartedAt
-    // For non-recurring deadlines, use createdAt as before
-    const now = currentTime.getTime();
-    const startTime = deadline.isRecurring && deadline.lastStartedAt
-      ? new Date(deadline.lastStartedAt).getTime()
-      : new Date(deadline.createdAt).getTime();
-    const due = new Date(deadline.dueDate).getTime();
-
-    const totalDuration = due - startTime;
-    const elapsed = now - startTime;
-    const progress = totalDuration > 0 ? elapsed / totalDuration : 1;
-
-    // Return remaining percentage (100% - elapsed%)
-    return Math.max(0, Math.min(100, (1 - progress) * 100));
-  };
-
-  const shouldPulse = (timeLeft, deadline) => {
-    if (timeLeft.isOverdue) return true;
-
-    // For recurring deadlines, calculate progress from lastStartedAt
-    // For non-recurring deadlines, use createdAt as before
-    const now = currentTime.getTime();
-    const startTime = deadline.isRecurring && deadline.lastStartedAt
-      ? new Date(deadline.lastStartedAt).getTime()
-      : new Date(deadline.createdAt).getTime();
-    const due = new Date(deadline.dueDate).getTime();
-
-    const totalDuration = due - startTime;
-    const elapsed = now - startTime;
-    const progress = totalDuration > 0 ? elapsed / totalDuration : 1;
-
-    return progress >= 0.9; // Pulse when 90%+ elapsed
+    const progressColor = progress < 0.5 ? 'stroke-green-500' : progress < 0.9 ? 'stroke-yellow-500' : 'stroke-red-500';
+    const progressPercentage = Math.max(0, Math.min(100, (1 - progress) * 100));
+    const isPulsing = progress >= 0.9;
+    return { progressColor, progressPercentage, isPulsing };
   };
 
   // Helper function to format datetime for input (UTC to Moscow display)
@@ -403,9 +367,7 @@ const DeadlineTracker = () => {
   // Helper function to render individual deadline card
   const renderDeadlineCard = (deadline, isRegularSection) => {
     const timeLeft = calculateTimeLeft(deadline.dueDate);
-    const progressColor = getProgressColor(timeLeft, deadline);
-    const progressPercentage = getProgressPercentage(timeLeft, deadline);
-    const isPulsing = shouldPulse(timeLeft, deadline);
+    const { progressColor, progressPercentage, isPulsing } = getDeadlineMetrics(timeLeft, deadline);
 
     return (
       <DeadlineCard

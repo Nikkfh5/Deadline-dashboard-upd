@@ -19,7 +19,7 @@ const StatsPanel = ({ refreshKey = 0 }) => {
 
   if (!stats) return null;
 
-  const maxWeekCount = Math.max(...stats.week.map(d => d.count), 1);
+  const maxWeekCount = stats.week.reduce((max, d) => Math.max(max, d.count), 1);
 
   return (
     <div className="mt-10 mb-8">
