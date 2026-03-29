@@ -2,9 +2,9 @@ import logging
 import os
 from typing import Optional
 
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters
 
-from telegram_bot.handlers.start import start_command, help_command, dashboard_command, menu_button_handler, MENU_CB
+from telegram_bot.handlers.start import start_command, help_command, dashboard_command, reply_keyboard_handler, REPLY_KEYBOARD
 from telegram_bot.handlers.channels import remove_channel_command, list_channels_command, build_add_channel_conversation, delete_channel_button, DEL_CHANNEL_CB
 from telegram_bot.handlers.wiki import remove_wiki_command, list_wikis_command, build_add_wiki_conversation, delete_wiki_button, DEL_WIKI_CB
 from telegram_bot.handlers.deadlines import my_deadlines_command, delete_deadline_button, DEL_DEADLINE_CB
@@ -38,10 +38,16 @@ async def start_bot():
     _app.add_handler(CommandHandler("my_deadlines", my_deadlines_command))
     _app.add_handler(CommandHandler("share", share_command))
     _app.add_handler(CommandHandler("join", join_command))
-    _app.add_handler(CallbackQueryHandler(menu_button_handler, pattern=f"^{MENU_CB}"))
     _app.add_handler(CallbackQueryHandler(delete_deadline_button, pattern=f"^{DEL_DEADLINE_CB}"))
     _app.add_handler(CallbackQueryHandler(delete_channel_button, pattern=f"^{DEL_CHANNEL_CB}"))
     _app.add_handler(CallbackQueryHandler(delete_wiki_button, pattern=f"^{DEL_WIKI_CB}"))
+
+    # Reply keyboard buttons — must be LAST to not intercept conversation text
+    KEYBOARD_TEXTS = {"Добавить дедлайн", "Мои дедлайны", "Добавить канал", "Добавить wiki", "Дашборд", "Поделиться"}
+    _app.add_handler(MessageHandler(
+        filters.TEXT & filters.Regex(f"^({'|'.join(KEYBOARD_TEXTS)})$"),
+        reply_keyboard_handler,
+    ))
 
     await _app.initialize()
     await _app.start()
