@@ -58,9 +58,9 @@ async def get_stats(token: str = Query(...)):
                     "count": {"$sum": 1},
                 }},
             ],
-            # Busiest day of week (future deadlines only)
+            # Busiest day of week (next 7 days only)
             "busiest": [
-                {"$match": {"due_date": {"$gt": now}}},
+                {"$match": {"due_date": {"$gte": week_start, "$lt": week_end}}},
                 {"$group": {
                     "_id": {"$dayOfWeek": "$due_date"},  # 1=Sun..7=Sat
                     "count": {"$sum": 1},
