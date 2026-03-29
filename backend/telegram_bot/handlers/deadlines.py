@@ -85,8 +85,8 @@ async def my_deadlines_command(update: Update, context: ContextTypes.DEFAULT_TYP
                 link = f" | {url}"
 
         lines.append(
-            f"[{icon}] {d['name']} — {d['task']}\n"
-            f"   {date_str} (через {time_str}){conf_str}{link}"
+            f"• {d['name']} — {d['task']}\n"
+            f"   {date_str} (через {time_str}){link}"
         )
 
         # Complete button per deadline
