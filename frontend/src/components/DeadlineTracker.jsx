@@ -31,9 +31,14 @@ const normalizeServerDeadline = (d) => ({
 });
 
 // Merge server deadlines with local-only deadlines
+// Server is the source of truth — only keep local items that are very recent (< 10s old, likely just created)
 const mergeDeadlines = (serverList, localList) => {
   const serverIds = new Set(serverList.map(d => d.id));
-  const localOnly = localList.filter(d => !serverIds.has(d.id) && !d._fromServer);
+  const now = Date.now();
+  const localOnly = localList.filter(d =>
+    !serverIds.has(d.id) && !d._fromServer &&
+    (now - parseInt(d.id)) < 10000 // keep only items created < 10s ago (id is Date.now())
+  );
   return [...serverList, ...localOnly];
 };
 
@@ -362,7 +367,7 @@ const DeadlineTracker = () => {
         lastStartedAt: formData.isRecurring ? now.toISOString() : undefined
       };
       setDeadlines(prev => [...prev, deadline]);
-      // Sync create to backend
+      // Sync create to backend — replace local ID with server ID
       if (hasToken()) {
         createDeadline({
           name: deadline.name,
@@ -371,7 +376,15 @@ const DeadlineTracker = () => {
           is_recurring: deadline.isRecurring,
           interval_days: deadline.intervalDays,
           last_started_at: deadline.lastStartedAt,
-        }).then(refreshStats);
+        }).then((serverDeadline) => {
+          if (serverDeadline) {
+            const normalized = normalizeServerDeadline(serverDeadline);
+            setDeadlines(prev => prev.map(d =>
+              d.id === deadline.id ? normalized : d
+            ));
+          }
+          refreshStats();
+        });
       }
     }
 
