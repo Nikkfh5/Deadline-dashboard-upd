@@ -9,46 +9,82 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-TELEGRAM_ANALYSIS_PROMPT = """Ты анализируешь пост из Telegram-канала на наличие информации о дедлайнах.
-Пост может быть на русском или английском. Ищи домашние задания, контрольные, экзамены и другие учебные дедлайны.
+TELEGRAM_ANALYSIS_PROMPT = """<role>
+Ты — ассистент студента. Извлекаешь дедлайны из постов в Telegram-каналах: ДЗ, контрольные, экзамены, регистрации, записи в слоты — всё, что требует действия к определённому сроку.
+</role>
 
-СЕГОДНЯ: {today}
-
-Ключевые слова: ДЗ, домашнее задание, контрольная, КР, экзамен, зачёт, лабораторная, лаба,
-дедлайн, deadline, срок сдачи, до, к, assignment, homework, exam, test, quiz, коллоквиум.
-
-Название канала: {channel_name}
+<context>
+Сегодня: {today} ({weekday})
+Учебный год: {current_year}
+Канал: {channel_name}
 {context_block}
-Текст поста для анализа:
----
+</context>
+
+<post>
 {post_text}
----
+</post>
 
-Правила:
-1. Определи предмет по контексту канала (предыдущие посты, название). Если канал относится к конкретному предмету — используй его. Если канал общий — определи по содержанию поста.
-2. ОБЯЗАТЕЛЬНО разреши относительные даты: "завтра" = следующий день от СЕГОДНЯ, "послезавтра" = +2 дня, "в пятницу" = ближайшая пятница, "через неделю" = +7 дней. Никогда не возвращай null для due_date если в тексте есть хоть какое-то указание на срок.
-3. Извлеки важные детали: куда сдавать (ссылка, бумажный формат, google classroom), особые условия.
+<rules>
+ПРИОРИТЕТ ДАТ (критично):
+Если в тексте несколько дат — выбирай ту, к которой студенту нужно совершить действие:
+- "Запись открывается 30 марта в 17:00, дедлайн записи до 14 мая" → due_date = 30 марта 17:00 (действовать при открытии)
+- "ДЗ выдано 20 марта, сдать до 5 апреля" → due_date = 5 апреля 23:59 (дата сдачи)
+- "КР пройдёт 15 апреля" → due_date = 15 апреля (дата события)
 
-Ответь JSON-объектом:
+ДАТЫ:
+- Относительные даты от СЕГОДНЯ: "завтра" = +1, "в пятницу" = ближайшая будущая пятница, "через неделю" = +7.
+- Год не указан → {current_year}. Дата уже прошла в этом году → следующий.
+- Время не указано → 23:59. Точное время указано → используй его.
+- Все даты в MSK (UTC+3).
+
+ПРЕДМЕТ:
+- Канал одного предмета → используй его. Общий канал → определи из поста.
+
+ЧТО НЕ ИЗВЛЕКАТЬ:
+- Прошедшие даты ("вчера был дедлайн").
+- Отменённые задания ("ДЗ 5 отменяется").
+- Обсуждения без конкретного срока ("скоро будет контрольная").
+
+ПЕРЕНОСЫ:
+- "Дедлайн перенесён на 20 апреля" → извлеки НОВУЮ дату. В details укажи старую.
+
+CONFIDENCE:
+- 0.9+: явная дата + явное задание
+- 0.7-0.8: дата вычислима, задание понятно из контекста
+- 0.6: требуется интерпретация
+- < 0.6: не включай в результат
+</rules>
+
+<examples>
+Пост: "ДЗ 3 по линалу сдать до 15 апреля на anytask"
+{{"analysis": "Явное задание с конкретной датой и платформой.", "has_deadline": true, "deadlines": [{{"task_name": "ДЗ 3", "subject": "Линейная алгебра", "due_date": "2026-04-15T23:59:00", "confidence": 0.95, "details": "Сдавать на anytask"}}]}}
+
+Пост: "Ребят, скиньте решения до вторника" (канал: "Матан 2 курс")
+{{"analysis": "Предметный канал, срок — ближайший вторник.", "has_deadline": true, "deadlines": [{{"task_name": "Решения (задание)", "subject": "Математический анализ", "due_date": "2026-04-01T23:59:00", "confidence": 0.7, "details": ""}}]}}
+
+Пост: "Экзамен был жёсткий, половина группы завалила"
+{{"analysis": "Обсуждение прошедшего экзамена, нет будущего срока.", "has_deadline": false, "deadlines": []}}
+
+Пост: "Запись на НЭ открывается 2 апреля в 12:00 МСК. Закрытие записи 10 апреля."
+{{"analysis": "Две даты. Студенту критично записаться при открытии 2 апреля.", "has_deadline": true, "deadlines": [{{"task_name": "Запись на НЭ (открытие)", "subject": "определить из контекста канала", "due_date": "2026-04-02T12:00:00", "confidence": 0.9, "details": "Закрытие записи 10 апреля"}}]}}
+</examples>
+
+<output_format>
+СТРОГО валидный JSON. Без markdown, без ```json```, без текста до или после.
 {{
+  "analysis": "1-2 предложения: что нашёл, как выбрал дату",
   "has_deadline": true/false,
   "deadlines": [
     {{
-      "task_name": "краткое описание задания (например ДЗ 3)",
-      "subject": "название предмета",
-      "due_date": "YYYY-MM-DDTHH:MM:SS по московскому времени",
+      "task_name": "краткое название",
+      "subject": "предмет",
+      "due_date": "YYYY-MM-DDTHH:MM:SS",
       "confidence": 0.0-1.0,
-      "details": "куда сдавать, ссылки, особые условия (кратко)"
+      "details": "ссылки, условия, или пустая строка"
     }}
-  ],
-  "reasoning": "краткое объяснение"
+  ]
 }}
-
-Если дедлайн не найден: {{"has_deadline": false, "deadlines": [], "reasoning": "..."}}.
-Извлекай только дедлайны с уверенностью >= 0.6.
-Если год не указан, считай текущий учебный год ({current_year}).
-Если время не указано, по умолчанию 23:59.
-Отвечай ТОЛЬКО валидным JSON без markdown-обёрток."""
+</output_format>"""
 
 WIKI_ANALYSIS_PROMPT = """Ты извлекаешь информацию о дедлайнах с академической вики-страницы.
 Страница может содержать таблицы с заданиями и их сроками.
@@ -125,17 +161,22 @@ class HaikuAnalyzer:
 
     async def analyze_post(self, text: str, channel_name: str = "", channel_context: str = "") -> dict:
         if not self.client:
-            return {"has_deadline": False, "deadlines": [], "reasoning": "API key not configured"}
+            return {"has_deadline": False, "deadlines": [], "analysis": "API key not configured"}
 
         current_year = _get_academic_year()
 
         context_block = ""
         if channel_context:
-            # Trim context to avoid huge prompts
             trimmed = channel_context[:3000]
-            context_block = f"\nПредыдущие посты канала (для определения предмета/тематики):\n---\n{trimmed}\n---\n"
+            context_block = f"\nПредыдущие посты канала:\n{trimmed}"
 
-        today = datetime.now().strftime("%Y-%m-%d (%A)")
+        now = datetime.now()
+        today = now.strftime("%Y-%m-%d")
+        weekday_names = {
+            "Monday": "понедельник", "Tuesday": "вторник", "Wednesday": "среда",
+            "Thursday": "четверг", "Friday": "пятница", "Saturday": "суббота", "Sunday": "воскресенье",
+        }
+        weekday = weekday_names.get(now.strftime("%A"), now.strftime("%A"))
 
         prompt = TELEGRAM_ANALYSIS_PROMPT.format(
             post_text=text,
@@ -143,6 +184,7 @@ class HaikuAnalyzer:
             current_year=current_year,
             context_block=context_block,
             today=today,
+            weekday=weekday,
         )
 
         try:
@@ -154,7 +196,7 @@ class HaikuAnalyzer:
             return _extract_json(raw)
         except (anthropic.APIError, json.JSONDecodeError, ValueError) as e:
             logger.error(f"Haiku analyze_post error: {e}")
-            return {"has_deadline": False, "deadlines": [], "reasoning": str(e)}
+            return {"has_deadline": False, "deadlines": [], "analysis": str(e)}
 
     async def parse_date(self, user_text: str) -> Optional[datetime]:
         """Parse natural language date using Haiku. Returns datetime in UTC or None."""
