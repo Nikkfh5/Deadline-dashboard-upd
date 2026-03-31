@@ -116,14 +116,34 @@ async def add_channel_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 async def channel_link_received(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Receive channel link in second message."""
+    """Receive channel link in second message. Supports forwarded messages from channels."""
     user = context.user_data.pop("add_channel_user", None)
     if not user:
         user = await get_current_user(update)
         if not user:
             return ConversationHandler.END
 
-    await _process_channel_link(update, context, update.message.text.strip(), user)
+    msg = update.message
+
+    # If message is forwarded from a channel, extract channel info
+    if msg.forward_from_chat and msg.forward_from_chat.type == "channel":
+        chat = msg.forward_from_chat
+        if chat.username:
+            raw = f"@{chat.username}"
+        else:
+            await msg.reply_text(
+                "Это приватный канал. Отправь invite-ссылку вида:\n"
+                "  https://t.me/+XXXXX"
+            )
+            return ConversationHandler.END
+    else:
+        raw = (msg.text or "").strip()
+
+    if not raw:
+        await msg.reply_text("Не удалось распознать канал. Отправь ссылку или @username.")
+        return ConversationHandler.END
+
+    await _process_channel_link(update, context, raw, user)
     return ConversationHandler.END
 
 
