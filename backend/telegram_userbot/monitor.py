@@ -5,6 +5,7 @@ from typing import Optional
 from bson import ObjectId
 from telethon import TelegramClient, events
 from telethon.tl.types import Channel
+from telethon.tl.functions.channels import GetFullChannelRequest
 
 from services.database import get_db
 from services.haiku_analyzer import get_analyzer
@@ -19,15 +20,15 @@ _channel_profiles: dict = {}
 _CACHE_TTL = 3600  # 1 hour
 
 
-def _get_cached_profile(channel_id: int) -> Optional[str]:
+def _get_cached_profile(channel_id: int) -> Optional[dict]:
     entry = _channel_profiles.get(channel_id)
     if entry and (time.time() - entry["ts"]) < _CACHE_TTL:
-        return entry["context"]
+        return entry["profile"]
     return None
 
 
-def _set_cached_profile(channel_id: int, context: str):
-    _channel_profiles[channel_id] = {"context": context, "ts": time.time()}
+def _set_cached_profile(channel_id: int, profile: dict):
+    _channel_profiles[channel_id] = {"profile": profile, "ts": time.time()}
     # Evict old entries if cache too large
     if len(_channel_profiles) > 500:
         cutoff = time.time() - _CACHE_TTL
@@ -54,27 +55,43 @@ def setup_handlers(client: TelegramClient):
             logger.error(f"Error handling message: {e}", exc_info=True)
 
 
-async def _get_channel_context(chat) -> str:
-    """Fetch recent messages from channel to build context for Haiku.
+async def _get_channel_profile(chat) -> dict:
+    """Fetch channel info: description, recent messages, known subjects.
     Cached per channel_id to avoid repeated fetches."""
     channel_id = chat.id
+    empty_profile = {"context": "", "about": "", "known_subjects": []}
 
     # Check in-memory cache with TTL
-    cached_profile = _get_cached_profile(channel_id)
-    if cached_profile is not None:
-        return cached_profile
+    cached = _get_cached_profile(channel_id)
+    if cached is not None:
+        return cached
 
     # Check DB cache
     db = get_db()
-    cached = await db.channel_profiles.find_one({"channel_id": channel_id})
-    if cached:
-        _set_cached_profile(channel_id, cached["context"])
-        return cached["context"]
+    cached_doc = await db.channel_profiles.find_one({"channel_id": channel_id})
+    if cached_doc:
+        profile = {
+            "context": cached_doc.get("context", ""),
+            "about": cached_doc.get("about", ""),
+            "known_subjects": cached_doc.get("known_subjects", []),
+        }
+        _set_cached_profile(channel_id, profile)
+        return profile
+
+    if not _client:
+        return empty_profile
+
+    about = ""
+    context = ""
+
+    # Fetch channel description
+    try:
+        full = await _client(GetFullChannelRequest(chat))
+        about = full.full_chat.about or ""
+    except Exception as e:
+        logger.warning(f"Failed to fetch channel about: {e}")
 
     # Fetch last 15 messages to build context
-    if not _client:
-        return ""
-
     try:
         messages = await _client.get_messages(chat, limit=15)
         texts = []
@@ -82,26 +99,28 @@ async def _get_channel_context(chat) -> str:
             t = msg.text or msg.message or ""
             if t and len(t) > 15:
                 texts.append(t[:300])
-
         context = "\n---\n".join(texts)
-
-        # Cache in DB
-        await db.channel_profiles.update_one(
-            {"channel_id": channel_id},
-            {"$set": {
-                "channel_id": channel_id,
-                "title": chat.title,
-                "username": chat.username,
-                "context": context,
-            }},
-            upsert=True,
-        )
-        _set_cached_profile(channel_id, context)
-        logger.info(f"Built channel context for {chat.title} ({len(texts)} messages)")
-        return context
     except Exception as e:
         logger.warning(f"Failed to fetch channel context: {e}")
-        return ""
+
+    profile = {"context": context, "about": about, "known_subjects": []}
+
+    # Cache in DB
+    await db.channel_profiles.update_one(
+        {"channel_id": channel_id},
+        {"$set": {
+            "channel_id": channel_id,
+            "title": chat.title,
+            "username": chat.username,
+            "context": context,
+            "about": about,
+            "known_subjects": [],
+        }},
+        upsert=True,
+    )
+    _set_cached_profile(channel_id, profile)
+    logger.info(f"Built channel profile for {chat.title} (about: {about[:80]})")
+    return profile
 
 
 async def _handle_message(event):
@@ -141,13 +160,15 @@ async def _handle_message(event):
 
     logger.info(f"Processing message from {channel_username or str(channel_id)}: {text[:100]}...")
 
-    # Get channel context for better subject detection
-    channel_context = await _get_channel_context(chat)
+    # Get channel profile for better subject detection
+    profile = await _get_channel_profile(chat)
 
     result = await get_analyzer().analyze_post(
         text,
         channel_name=chat.title or channel_username or str(channel_id),
-        channel_context=channel_context,
+        channel_context=profile["context"],
+        channel_about=profile["about"],
+        known_subjects=profile["known_subjects"],
     )
 
     logger.info(f"Haiku result: has_deadline={result.get('has_deadline')}, deadlines={len(result.get('deadlines', []))}, analysis={result.get('analysis', '')[:150]}")
@@ -172,6 +193,23 @@ async def _handle_message(event):
 
     if count > 0:
         logger.info(f"Added {count} deadlines from {channel_username or str(channel_id)}")
+
+        # Remember extracted subject names for this channel
+        new_subjects = list(set(
+            d.get("subject", "") for d in extracted
+            if d.get("subject") and d["subject"] != "Unknown"
+        ))
+        if new_subjects:
+            await db.channel_profiles.update_one(
+                {"channel_id": chat.id},
+                {"$addToSet": {"known_subjects": {"$each": new_subjects}}},
+            )
+            # Update in-memory cache
+            entry = _channel_profiles.get(chat.id)
+            if entry:
+                existing = set(entry["profile"].get("known_subjects", []))
+                existing.update(new_subjects)
+                entry["profile"]["known_subjects"] = list(existing)
 
         source_ids = [s["_id"] for s in sources]
         await db.sources.update_many(

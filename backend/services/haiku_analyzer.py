@@ -17,6 +17,8 @@ TELEGRAM_ANALYSIS_PROMPT = """<role>
 Сегодня: {today} ({weekday})
 Учебный год: {current_year}
 Канал: {channel_name}
+{description_block}
+{subjects_block}
 {context_block}
 </context>
 
@@ -38,7 +40,9 @@ TELEGRAM_ANALYSIS_PROMPT = """<role>
 - Все даты в MSK (UTC+3).
 
 ПРЕДМЕТ:
-- Канал одного предмета → используй его. Общий канал → определи из поста.
+- Если в описании канала указано название предмета → используй его ДОСЛОВНО.
+- Если указаны ранее извлечённые предметы — используй ТО ЖЕ название для единообразия.
+- Канал одного предмета → используй его название. Общий канал → определи из поста.
 
 ЧТО НЕ ИЗВЛЕКАТЬ:
 - Прошедшие даты ("вчера был дедлайн").
@@ -159,7 +163,8 @@ class HaikuAnalyzer:
                     logger.warning(f"Haiku API retry {attempt + 1}/{MAX_API_RETRIES}: {e}")
         raise last_error
 
-    async def analyze_post(self, text: str, channel_name: str = "", channel_context: str = "") -> dict:
+    async def analyze_post(self, text: str, channel_name: str = "", channel_context: str = "",
+                           channel_about: str = "", known_subjects: list = None) -> dict:
         if not self.client:
             return {"has_deadline": False, "deadlines": [], "analysis": "API key not configured"}
 
@@ -169,6 +174,14 @@ class HaikuAnalyzer:
         if channel_context:
             trimmed = channel_context[:3000]
             context_block = f"\nПредыдущие посты канала:\n{trimmed}"
+
+        description_block = ""
+        if channel_about:
+            description_block = f"Описание канала: {channel_about}"
+
+        subjects_block = ""
+        if known_subjects:
+            subjects_block = f"Ранее извлечённые предметы из этого канала: {', '.join(known_subjects)}"
 
         now = datetime.now()
         today = now.strftime("%Y-%m-%d")
@@ -183,6 +196,8 @@ class HaikuAnalyzer:
             channel_name=channel_name,
             current_year=current_year,
             context_block=context_block,
+            description_block=description_block,
+            subjects_block=subjects_block,
             today=today,
             weekday=weekday,
         )
