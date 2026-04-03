@@ -17,6 +17,7 @@ from telegram_bot.utils import get_current_user
 
 WAITING_CHANNEL_LINK = 0
 DEL_CHANNEL_CB = "del_ch:"
+CANCEL_CB = "add_ch:cancel"
 
 # Reply keyboard buttons that should NOT be captured as text input
 _REPLY_BUTTONS = frozenset({
@@ -26,6 +27,12 @@ _REPLY_BUTTONS = frozenset({
 _TEXT_INPUT = filters.TEXT & ~filters.COMMAND & ~filters.Text(_REPLY_BUTTONS)
 
 logger = logging.getLogger(__name__)
+
+
+def _cancel_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("Отмена", callback_data=CANCEL_CB)]
+    ])
 
 
 def _normalize_channel(text: str) -> str:
@@ -117,7 +124,8 @@ async def add_channel_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         "Отправь ссылку на канал или @username:\n\n"
         "  @channelname\n"
         "  https://t.me/channelname\n"
-        "  https://t.me/+XXXXX (приватный)"
+        "  https://t.me/+XXXXX (приватный)",
+        reply_markup=_cancel_keyboard(),
     )
     return WAITING_CHANNEL_LINK
 
@@ -151,6 +159,14 @@ async def channel_link_received(update: Update, context: ContextTypes.DEFAULT_TY
         return ConversationHandler.END
 
     await _process_channel_link(update, context, raw, user)
+    return ConversationHandler.END
+
+
+async def _cancel_add_channel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    context.user_data.pop("add_channel_user", None)
+    await query.edit_message_text("Добавление канала отменено.")
     return ConversationHandler.END
 
 
@@ -227,11 +243,15 @@ def build_add_channel_conversation() -> ConversationHandler:
         ],
         states={
             WAITING_CHANNEL_LINK: [
+                CallbackQueryHandler(_cancel_add_channel, pattern=f"^{CANCEL_CB}$"),
                 MessageHandler(filters.FORWARDED & ~filters.COMMAND, channel_link_received),
                 MessageHandler(_TEXT_INPUT, channel_link_received),
             ],
         },
-        fallbacks=[CommandHandler("cancel", lambda u, c: ConversationHandler.END)],
+        fallbacks=[
+            CallbackQueryHandler(_cancel_add_channel, pattern=f"^{CANCEL_CB}$"),
+            CommandHandler("cancel", lambda u, c: ConversationHandler.END),
+        ],
         allow_reentry=True,
         conversation_timeout=120,
         per_user=True,

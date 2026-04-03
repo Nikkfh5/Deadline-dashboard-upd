@@ -24,6 +24,13 @@ _REPLY_BUTTONS = frozenset({
 })
 _TEXT_INPUT = filters.TEXT & ~filters.COMMAND & ~filters.Text(_REPLY_BUTTONS)
 DEL_WIKI_CB = "del_wiki:"
+CANCEL_CB = "add_wiki:cancel"
+
+
+def _cancel_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("Отмена", callback_data=CANCEL_CB)]
+    ])
 
 
 def _is_valid_wiki_url(url: str) -> bool:
@@ -40,7 +47,10 @@ async def add_wiki_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         return ConversationHandler.END
 
     context.user_data["add_wiki_user"] = user
-    await update.message.reply_text("Отправь ссылку на wiki-страницу:")
+    await update.message.reply_text(
+        "Отправь ссылку на wiki-страницу:",
+        reply_markup=_cancel_keyboard(),
+    )
     return WAITING_WIKI_URL
 
 
@@ -52,6 +62,14 @@ async def wiki_url_received(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             return ConversationHandler.END
 
     await _process_wiki_url(update, update.message.text.strip(), user)
+    return ConversationHandler.END
+
+
+async def _cancel_add_wiki(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    context.user_data.pop("add_wiki_user", None)
+    await query.edit_message_text("Добавление wiki отменено.")
     return ConversationHandler.END
 
 
@@ -112,10 +130,14 @@ def build_add_wiki_conversation() -> ConversationHandler:
         ],
         states={
             WAITING_WIKI_URL: [
+                CallbackQueryHandler(_cancel_add_wiki, pattern=f"^{CANCEL_CB}$"),
                 MessageHandler(_TEXT_INPUT, wiki_url_received),
             ],
         },
-        fallbacks=[CommandHandler("cancel", lambda u, c: ConversationHandler.END)],
+        fallbacks=[
+            CallbackQueryHandler(_cancel_add_wiki, pattern=f"^{CANCEL_CB}$"),
+            CommandHandler("cancel", lambda u, c: ConversationHandler.END),
+        ],
         allow_reentry=True,
         conversation_timeout=120,
         per_user=True,
