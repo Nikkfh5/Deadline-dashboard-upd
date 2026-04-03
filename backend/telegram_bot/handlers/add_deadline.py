@@ -23,6 +23,13 @@ logger = logging.getLogger(__name__)
 # Conversation states
 NAME, TASK, DATE_INPUT, CONFIRM = range(4)
 
+# Reply keyboard buttons that should NOT be captured as text input
+_REPLY_BUTTONS = frozenset({
+    "Добавить дедлайн", "Добавить канал", "Добавить wiki",
+    "Мои дедлайны", "Мои источники", "Настройки",
+})
+_TEXT_INPUT = filters.TEXT & ~filters.COMMAND & ~filters.Text(_REPLY_BUTTONS)
+
 # Callback data
 CONFIRM_SAVE = "confirm:save"
 CONFIRM_CANCEL = "confirm:cancel"
@@ -355,15 +362,15 @@ def build_add_deadline_conversation() -> ConversationHandler:
         states={
             NAME: [
                 MessageHandler(filters.FORWARDED & ~filters.COMMAND, forwarded_received),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, subject_received),
+                MessageHandler(_TEXT_INPUT, subject_received),
                 CallbackQueryHandler(step_cancel, pattern=f"^{STEP_CANCEL}$"),
             ],
             TASK: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, task_received),
+                MessageHandler(_TEXT_INPUT, task_received),
                 CallbackQueryHandler(step_cancel, pattern=f"^{STEP_CANCEL}$"),
             ],
             DATE_INPUT: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, date_text),
+                MessageHandler(_TEXT_INPUT, date_text),
                 CallbackQueryHandler(step_cancel, pattern=f"^{STEP_CANCEL}$"),
             ],
             CONFIRM: [
@@ -371,6 +378,7 @@ def build_add_deadline_conversation() -> ConversationHandler:
             ],
         },
         fallbacks=[CommandHandler("cancel", cancel_command)],
+        allow_reentry=True,
         conversation_timeout=300,
         per_user=True,
         per_chat=True,
