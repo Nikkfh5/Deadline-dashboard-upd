@@ -27,6 +27,8 @@ NAME, TASK, DATE_INPUT, CONFIRM = range(4)
 CONFIRM_SAVE = "confirm:save"
 CONFIRM_CANCEL = "confirm:cancel"
 CONFIRM_RESTART = "confirm:restart"
+CONFIRM_EDIT_DATE = "confirm:edit_date"
+STEP_CANCEL = "step:cancel"
 
 
 def _confirm_keyboard() -> InlineKeyboardMarkup:
@@ -36,17 +38,27 @@ def _confirm_keyboard() -> InlineKeyboardMarkup:
             InlineKeyboardButton("Отмена", callback_data=CONFIRM_CANCEL),
         ],
         [
+            InlineKeyboardButton("Изменить дату", callback_data=CONFIRM_EDIT_DATE),
             InlineKeyboardButton("Заново", callback_data=CONFIRM_RESTART),
         ],
     ]
     return InlineKeyboardMarkup(buttons)
 
 
+def _cancel_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("Отмена", callback_data=STEP_CANCEL)]
+    ])
+
+
 def _format_preview(data: dict) -> str:
     due_utc = data["due_date"]
+    task = data["task"]
+    if len(task) > 200:
+        task = task[:200] + "…"
     return (
         f"Проверь и подтверди:\n\n"
-        f"{data['name']} — {data['task']}\n"
+        f"{data['name']} — {task}\n"
         f"До: {format_due_date_msk(due_utc)} МСК (через {format_time_left(due_utc)})"
     )
 
@@ -96,21 +108,98 @@ async def add_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
     context.user_data["add_deadline"] = {"user_id": str(user["_id"])}
     await update.message.reply_text(
-        "Добавляем дедлайн!\n\nВведи название:"
+        "Добавляем дедлайн!\n\nВведи название или перешли сообщение из канала:",
+        reply_markup=_cancel_keyboard(),
     )
     return NAME
+
+
+async def forwarded_received(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Handle forwarded message at NAME state — auto-extract deadline info."""
+    msg = update.message
+    text = msg.text or msg.caption or ""
+
+    if not text:
+        await msg.reply_text(
+            "Не удалось прочитать сообщение. Введи название:",
+            reply_markup=_cancel_keyboard(),
+        )
+        return NAME
+
+    data = context.user_data["add_deadline"]
+    data["original_text"] = text
+
+    # Get channel info from forwarded message
+    channel_name = ""
+    if msg.forward_from_chat:
+        channel_name = msg.forward_from_chat.title or ""
+
+    await msg.reply_text("Анализирую сообщение…")
+
+    # Use Haiku to extract deadline from the post
+    result = await get_analyzer().analyze_post(text, channel_name=channel_name)
+
+    if result.get("has_deadline") and result.get("deadlines"):
+        deadline = result["deadlines"][0]
+
+        subject = deadline.get("subject", "") or channel_name
+        task_name = deadline.get("task_name", "")
+        details = deadline.get("details", "")
+
+        data["name"] = subject or channel_name or task_name
+        data["task"] = task_name
+        if details:
+            data["task"] += f"\n{details}"
+
+        due_str = deadline.get("due_date", "")
+        if due_str:
+            try:
+                dt = datetime.fromisoformat(due_str)
+                data["due_date"] = dt - timedelta(hours=3)  # MSK to UTC
+            except ValueError:
+                pass
+
+    if "due_date" in data:
+        await msg.reply_text(
+            _format_preview(data),
+            reply_markup=_confirm_keyboard(),
+        )
+        return CONFIRM
+
+    # Date not extracted — fill what we can, ask for date
+    if "name" not in data:
+        first_line = text.split("\n")[0][:100]
+        data["name"] = channel_name or first_line
+    if "task" not in data:
+        data["task"] = text[:500]
+
+    await msg.reply_text(
+        f"{data['name']}\n\n"
+        "Не удалось определить дату. Когда дедлайн?\n"
+        "  15.04.2026 23:59\n"
+        "  15.04\n"
+        "  завтра\n"
+        "  в пятницу\n"
+        "  через 3 дня",
+        reply_markup=_cancel_keyboard(),
+    )
+    return DATE_INPUT
 
 
 async def subject_received(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Step 1: name received, ask for description."""
     text = update.message.text.strip()
     if not text:
-        await update.message.reply_text("Название не может быть пустым. Попробуй ещё:")
+        await update.message.reply_text(
+            "Название не может быть пустым. Попробуй ещё:",
+            reply_markup=_cancel_keyboard(),
+        )
         return NAME
 
     context.user_data["add_deadline"]["name"] = text
     await update.message.reply_text(
-        f"{text}\n\nДобавь описание:"
+        f"{text}\n\nДобавь описание:",
+        reply_markup=_cancel_keyboard(),
     )
     return TASK
 
@@ -119,7 +208,10 @@ async def task_received(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     """Step 2: description received, show date keyboard."""
     text = update.message.text.strip()
     if not text:
-        await update.message.reply_text("Описание не может быть пустым. Попробуй ещё:")
+        await update.message.reply_text(
+            "Описание не может быть пустым. Попробуй ещё:",
+            reply_markup=_cancel_keyboard(),
+        )
         return TASK
 
     context.user_data["add_deadline"]["task"] = text
@@ -129,13 +221,14 @@ async def task_received(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         "  15.04\n"
         "  завтра\n"
         "  в пятницу\n"
-        "  через 3 дня"
+        "  через 3 дня",
+        reply_markup=_cancel_keyboard(),
     )
     return DATE_INPUT
 
 
 async def date_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Step 3b: custom date entered as text. Try regex first, then Haiku."""
+    """Step 3: custom date entered as text. Try regex first, then Haiku."""
     text = update.message.text
 
     # Try simple regex formats first
@@ -152,7 +245,8 @@ async def date_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             "  15.04\n"
             "  завтра\n"
             "  в пятницу\n"
-            "  через 3 дня"
+            "  через 3 дня",
+            reply_markup=_cancel_keyboard(),
         )
         return DATE_INPUT
 
@@ -167,7 +261,7 @@ async def date_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 
 async def confirm_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Step 4: confirm / cancel / restart."""
+    """Step 4: confirm / cancel / restart / edit date."""
     query = update.callback_query
     await query.answer()
 
@@ -183,9 +277,21 @@ async def confirm_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             "user_id": context.user_data["add_deadline"]["user_id"]
         }
         await query.edit_message_text(
-            "Начинаем заново!\n\nВведи название:"
+            "Начинаем заново!\n\nВведи название или перешли сообщение из канала:"
         )
         return NAME
+
+    if action == CONFIRM_EDIT_DATE:
+        await query.edit_message_text(
+            "Когда дедлайн? Напиши новую дату:\n"
+            "  15.04.2026 23:59\n"
+            "  15.04\n"
+            "  завтра\n"
+            "  в пятницу\n"
+            "  через 3 дня",
+            reply_markup=_cancel_keyboard(),
+        )
+        return DATE_INPUT
 
     # CONFIRM_SAVE
     data = context.user_data["add_deadline"]
@@ -203,7 +309,11 @@ async def confirm_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         "is_recurring": False,
         "interval_days": None,
         "last_started_at": None,
-        "source": {"type": "manual", "source_id": None, "original_text": None},
+        "source": {
+            "type": "manual",
+            "source_id": None,
+            "original_text": data.get("original_text"),
+        },
         "confidence": None,
         "is_postponed": False,
         "previous_due_date": None,
@@ -215,6 +325,15 @@ async def confirm_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         f"{data['name']} — {data['task']}\n"
         f"До: {format_due_date_msk(data['due_date'])} (МСК)"
     )
+    context.user_data.pop("add_deadline", None)
+    return ConversationHandler.END
+
+
+async def step_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Cancel from inline button at any step."""
+    query = update.callback_query
+    await query.answer()
+    await query.edit_message_text("Добавление дедлайна отменено.")
     context.user_data.pop("add_deadline", None)
     return ConversationHandler.END
 
@@ -234,9 +353,19 @@ def build_add_deadline_conversation() -> ConversationHandler:
             MessageHandler(filters.Text(["Добавить дедлайн"]), add_command),
         ],
         states={
-            NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, subject_received)],
-            TASK: [MessageHandler(filters.TEXT & ~filters.COMMAND, task_received)],
-            DATE_INPUT: [MessageHandler(filters.TEXT & ~filters.COMMAND, date_text)],
+            NAME: [
+                MessageHandler(filters.FORWARDED & ~filters.COMMAND, forwarded_received),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, subject_received),
+                CallbackQueryHandler(step_cancel, pattern=f"^{STEP_CANCEL}$"),
+            ],
+            TASK: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, task_received),
+                CallbackQueryHandler(step_cancel, pattern=f"^{STEP_CANCEL}$"),
+            ],
+            DATE_INPUT: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, date_text),
+                CallbackQueryHandler(step_cancel, pattern=f"^{STEP_CANCEL}$"),
+            ],
             CONFIRM: [
                 CallbackQueryHandler(confirm_button, pattern="^confirm:"),
             ],
