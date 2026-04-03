@@ -18,6 +18,13 @@ from telegram_bot.utils import get_current_user
 WAITING_CHANNEL_LINK = 0
 DEL_CHANNEL_CB = "del_ch:"
 
+# Reply keyboard buttons that should NOT be captured as text input
+_REPLY_BUTTONS = frozenset({
+    "Добавить дедлайн", "Добавить канал", "Добавить wiki",
+    "Мои дедлайны", "Мои источники", "Настройки",
+})
+_TEXT_INPUT = filters.TEXT & ~filters.COMMAND & ~filters.Text(_REPLY_BUTTONS)
+
 logger = logging.getLogger(__name__)
 
 
@@ -220,10 +227,12 @@ def build_add_channel_conversation() -> ConversationHandler:
         ],
         states={
             WAITING_CHANNEL_LINK: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, channel_link_received),
+                MessageHandler(filters.FORWARDED & ~filters.COMMAND, channel_link_received),
+                MessageHandler(_TEXT_INPUT, channel_link_received),
             ],
         },
         fallbacks=[CommandHandler("cancel", lambda u, c: ConversationHandler.END)],
+        allow_reentry=True,
         conversation_timeout=120,
         per_user=True,
         per_chat=True,

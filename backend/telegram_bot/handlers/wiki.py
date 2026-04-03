@@ -17,6 +17,12 @@ from telegram_bot.utils import get_current_user
 logger = logging.getLogger(__name__)
 
 WAITING_WIKI_URL = 0
+
+_REPLY_BUTTONS = frozenset({
+    "Добавить дедлайн", "Добавить канал", "Добавить wiki",
+    "Мои дедлайны", "Мои источники", "Настройки",
+})
+_TEXT_INPUT = filters.TEXT & ~filters.COMMAND & ~filters.Text(_REPLY_BUTTONS)
 DEL_WIKI_CB = "del_wiki:"
 
 
@@ -106,10 +112,11 @@ def build_add_wiki_conversation() -> ConversationHandler:
         ],
         states={
             WAITING_WIKI_URL: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, wiki_url_received),
+                MessageHandler(_TEXT_INPUT, wiki_url_received),
             ],
         },
         fallbacks=[CommandHandler("cancel", lambda u, c: ConversationHandler.END)],
+        allow_reentry=True,
         conversation_timeout=120,
         per_user=True,
         per_chat=True,
