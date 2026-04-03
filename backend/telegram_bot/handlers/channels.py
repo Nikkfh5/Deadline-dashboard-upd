@@ -2,7 +2,7 @@ import logging
 import re
 from datetime import datetime
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, MessageOriginChannel
 from telegram.ext import (
     ContextTypes,
     ConversationHandler,
@@ -126,8 +126,8 @@ async def channel_link_received(update: Update, context: ContextTypes.DEFAULT_TY
     msg = update.message
 
     # If message is forwarded from a channel, extract channel info
-    if msg.forward_from_chat and msg.forward_from_chat.type == "channel":
-        chat = msg.forward_from_chat
+    if isinstance(msg.forward_origin, MessageOriginChannel):
+        chat = msg.forward_origin.chat
         if chat.username:
             raw = f"@{chat.username}"
         else:

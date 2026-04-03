@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Optional
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, MessageOriginChannel
 from telegram.ext import (
     ContextTypes,
     ConversationHandler,
@@ -131,8 +131,8 @@ async def forwarded_received(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     # Get channel info from forwarded message
     channel_name = ""
-    if msg.forward_from_chat:
-        channel_name = msg.forward_from_chat.title or ""
+    if isinstance(msg.forward_origin, MessageOriginChannel):
+        channel_name = msg.forward_origin.chat.title or ""
 
     await msg.reply_text("Анализирую сообщение…")
 
