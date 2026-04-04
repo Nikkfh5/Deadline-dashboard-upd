@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { DayPicker } from 'react-day-picker';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -46,8 +46,8 @@ const DeadlineCalendar = ({ deadlines, isPlanningMode, planningSubMode, manualPl
     [deadlines]
   );
 
-  // Custom day renderer
-  const renderDay = (date) => {
+  // Custom day renderer — useCallback prevents DayPicker from recreating DOM on parent re-render
+  const renderDay = useCallback((date) => {
     const dayKey = format(date, 'yyyy-MM-dd');
     const overlappingIds = overlapMap.get(dayKey) || [];
     const deadlinesForDay = getDeadlinesForDay(date, workPeriods);
@@ -156,7 +156,13 @@ const DeadlineCalendar = ({ deadlines, isPlanningMode, planningSubMode, manualPl
         )}
       </div>
     );
-  };
+  }, [overlapMap, workPeriods, dueDates, planningSubMode, manualActiveDeadlineId, manualPlan, onDayClick, isManualEntry]);
+
+  const dayPickerComponents = useMemo(() => ({
+    IconLeft: (props) => <ChevronLeft className="h-4 w-4" {...props} />,
+    IconRight: (props) => <ChevronRight className="h-4 w-4" {...props} />,
+    DayContent: ({ date }) => renderDay(date),
+  }), [renderDay]);
 
   // Legend
   const activeWorkPeriods = useMemo(() => {
@@ -213,11 +219,7 @@ const DeadlineCalendar = ({ deadlines, isPlanningMode, planningSubMode, manualPl
             day_outside: 'text-slate-300 dark:text-slate-600 opacity-50',
             day_disabled: 'text-slate-300 dark:text-slate-600 opacity-30',
           }}
-          components={{
-            IconLeft: (props) => <ChevronLeft className="h-4 w-4" {...props} />,
-            IconRight: (props) => <ChevronRight className="h-4 w-4" {...props} />,
-            DayContent: ({ date }) => renderDay(date),
-          }}
+          components={dayPickerComponents}
         />
 
         {/* Legend */}
@@ -264,4 +266,4 @@ const DeadlineCalendar = ({ deadlines, isPlanningMode, planningSubMode, manualPl
   );
 };
 
-export default DeadlineCalendar;
+export default React.memo(DeadlineCalendar);
