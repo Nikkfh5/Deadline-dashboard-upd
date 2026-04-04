@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Clock, Plus, Moon, Sun, ChevronDown, ChevronUp } from 'lucide-react';
+import { Clock, Plus, Moon, Sun, ChevronDown, ChevronUp, Calendar as CalendarIcon, LayoutGrid } from 'lucide-react';
 import { Button } from './ui/button';
 import { TooltipProvider } from './ui/tooltip';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
@@ -8,6 +8,9 @@ import { fetchDeadlines, createDeadline, updateDeadline, deleteDeadlineApi, comp
 import StatsPanel from './StatsPanel';
 import DeadlineCard from './DeadlineCard';
 import DeadlineModal from './DeadlineModal';
+import DeadlineCalendar from './DeadlineCalendar';
+import SnapshotManager from './SnapshotManager';
+import { useSnapshots } from '../hooks/useSnapshots';
 
 // Normalize snake_case server response to camelCase frontend format
 const normalizeServerDeadline = (d) => ({
@@ -20,6 +23,7 @@ const normalizeServerDeadline = (d) => ({
   isRecurring: d.is_recurring || false,
   intervalDays: d.interval_days,
   lastStartedAt: d.last_started_at || d.created_at,
+  daysNeeded: d.days_needed ?? null,
   _fromServer: true,
 });
 
@@ -45,10 +49,14 @@ const DeadlineTracker = () => {
     dueDate: '',
     isRecurring: false,
     intervalDays: '7',
-    customDays: ''
+    customDays: '',
+    daysNeeded: ''
   });
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isTemporaryCollapsed, setIsTemporaryCollapsed] = useState(true);
+  const [isCalendarCollapsed, setIsCalendarCollapsed] = useState(true);
+  const [isPlanningMode, setIsPlanningMode] = useState(false);
+  const { snapshots, saveSnapshot, deleteSnapshot, exportSnapshotAsText } = useSnapshots();
   const [statsKey, setStatsKey] = useState(0);
   const refreshStats = () => setStatsKey(k => k + 1);
   const [darkMode, setDarkMode] = useState(() => {
@@ -74,7 +82,8 @@ const DeadlineTracker = () => {
       // New fields with defaults for backward compatibility
       isRecurring: deadline.isRecurring || false,
       intervalDays: deadline.intervalDays,
-      lastStartedAt: deadline.lastStartedAt || deadline.createdAt
+      lastStartedAt: deadline.lastStartedAt || deadline.createdAt,
+      daysNeeded: deadline.daysNeeded ?? null
     };
   };
 
@@ -261,7 +270,8 @@ const DeadlineTracker = () => {
       dueDate: '',
       isRecurring: false,
       intervalDays: '7',
-      customDays: ''
+      customDays: '',
+      daysNeeded: ''
     });
     setIsModalOpen(true);
   };
@@ -274,7 +284,8 @@ const DeadlineTracker = () => {
       dueDate: formatDateTimeForInput(deadline.dueDate),
       isRecurring: deadline.isRecurring || false,
       intervalDays: deadline.intervalDays ? deadline.intervalDays.toString() : '7',
-      customDays: ''
+      customDays: '',
+      daysNeeded: deadline.daysNeeded ? deadline.daysNeeded.toString() : ''
     });
     setIsModalOpen(true);
   };
@@ -322,7 +333,8 @@ const DeadlineTracker = () => {
         updatedAt: now.toISOString(),
         isRecurring: formData.isRecurring,
         intervalDays: formData.isRecurring ? currentInterval : undefined,
-        lastStartedAt: newLastStartedAt
+        lastStartedAt: newLastStartedAt,
+        daysNeeded: formData.daysNeeded ? parseInt(formData.daysNeeded) : null
       };
       setDeadlines(prev => prev.map(d => d.id === editingDeadline.id ? updatedDeadline : d));
       // Sync update to backend
@@ -347,7 +359,8 @@ const DeadlineTracker = () => {
         updatedAt: now.toISOString(),
         isRecurring: formData.isRecurring,
         intervalDays: formData.isRecurring ? getIntervalDays() : undefined,
-        lastStartedAt: formData.isRecurring ? now.toISOString() : undefined
+        lastStartedAt: formData.isRecurring ? now.toISOString() : undefined,
+        daysNeeded: formData.daysNeeded ? parseInt(formData.daysNeeded) : null
       };
       setDeadlines(prev => [...prev, deadline]);
       // Sync create to backend — replace local ID with server ID
@@ -371,7 +384,7 @@ const DeadlineTracker = () => {
       }
     }
 
-    setFormData({ name: '', task: '', dueDate: '', isRecurring: false, intervalDays: '7', customDays: '' });
+    setFormData({ name: '', task: '', dueDate: '', isRecurring: false, intervalDays: '7', customDays: '', daysNeeded: '' });
     setEditingDeadline(null);
     setIsModalOpen(false);
   };
@@ -388,6 +401,12 @@ const DeadlineTracker = () => {
     if (hasToken()) {
       completeDeadlineApi(id).then(refreshStats);
     }
+  };
+
+  const updateDaysNeeded = (id, value) => {
+    const parsed = parseInt(value);
+    const daysNeeded = isNaN(parsed) || parsed < 1 ? null : parsed;
+    setDeadlines(prev => prev.map(d => d.id === id ? { ...d, daysNeeded, updatedAt: new Date().toISOString() } : d));
   };
 
   // Helper function to render individual deadline card
@@ -408,6 +427,8 @@ const DeadlineTracker = () => {
         onComplete={handleCompleteDeadline}
         onRepeat={handleRepeatDeadline}
         isRegularSection={isRegularSection}
+        isPlanningMode={isPlanningMode}
+        onUpdateDaysNeeded={updateDaysNeeded}
       />
     );
   };
@@ -432,8 +453,8 @@ const DeadlineTracker = () => {
             </div>
           </div>
 
-          {/* Add Deadline Button */}
-          <div className="flex justify-center mb-8">
+          {/* Action Buttons */}
+          <div className="flex justify-center gap-3 mb-8 flex-wrap">
             <DeadlineModal
               isOpen={isModalOpen}
               onOpenChange={setIsModalOpen}
@@ -444,6 +465,39 @@ const DeadlineTracker = () => {
               onCancel={() => setIsModalOpen(false)}
               onTriggerClick={openAddModal}
             />
+
+            <Button
+              onClick={() => {
+                const next = !isPlanningMode;
+                setIsPlanningMode(next);
+                if (next) setIsCalendarCollapsed(false);
+              }}
+              variant={isPlanningMode ? 'default' : 'outline'}
+              className={isPlanningMode
+                ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-md'
+                : 'border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }
+            >
+              <LayoutGrid className="w-4 h-4 mr-2" />
+              {isPlanningMode ? 'Exit Planning' : 'Planning Mode'}
+            </Button>
+
+            {isPlanningMode && (
+              <SnapshotManager
+                snapshots={snapshots}
+                deadlines={deadlines}
+                onSave={saveSnapshot}
+                onDelete={deleteSnapshot}
+                onLoad={(snapshot) => {
+                  const snapshotMap = new Map(snapshot.deadlines.map(d => [d.id, d.daysNeeded]));
+                  setDeadlines(prev => prev.map(d => ({
+                    ...d,
+                    daysNeeded: snapshotMap.has(d.id) ? snapshotMap.get(d.id) : d.daysNeeded
+                  })));
+                }}
+                onExportText={exportSnapshotAsText}
+              />
+            )}
           </div>
 
           {/* Deadlines Sections */}
@@ -508,6 +562,31 @@ const DeadlineTracker = () => {
               })()}
             </div>
           )}
+
+          {/* Calendar Section - collapsible, below cards */}
+          <div className="mt-12">
+            <Collapsible open={!isCalendarCollapsed} onOpenChange={(open) => setIsCalendarCollapsed(!open)}>
+              <CollapsibleTrigger asChild>
+                <Button
+                  variant="ghost"
+                  className="w-full text-2xl font-semibold text-slate-800 dark:text-slate-100 mb-6 hover:bg-slate-100 dark:hover:bg-slate-800 p-4 flex items-center justify-center gap-2"
+                >
+                  <CalendarIcon className="w-5 h-5" />
+                  Calendar
+                  {isCalendarCollapsed ?
+                    <ChevronDown className="w-5 h-5" /> :
+                    <ChevronUp className="w-5 h-5" />
+                  }
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <DeadlineCalendar
+                  deadlines={deadlines}
+                  isPlanningMode={isPlanningMode}
+                />
+              </CollapsibleContent>
+            </Collapsible>
+          </div>
 
           {/* Statistics */}
           <StatsPanel refreshKey={statsKey} />

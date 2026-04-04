@@ -6,22 +6,28 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import CircularProgress from './CircularProgress';
+import PlanningModeInput from './PlanningModeInput';
 
 const truncateText = (text, maxLength = 25) => {
   if (text.length <= maxLength) return text;
   return text.substring(0, maxLength) + '...';
 };
 
-const DeadlineCard = ({ deadline, timeLeft, progressColor, progressPercentage, isPulsing, onEdit, onDelete, onComplete, onRepeat, isRegularSection }) => {
+const DeadlineCard = ({ deadline, timeLeft, progressColor, progressPercentage, isPulsing, onEdit, onDelete, onComplete, onRepeat, isRegularSection, isPlanningMode, onUpdateDaysNeeded }) => {
   const showRepeatButton = deadline.isRecurring && timeLeft.isOverdue;
 
   return (
     <Card
       key={deadline.id}
-      className="relative p-6 bg-white dark:bg-slate-800 shadow-md hover:shadow-xl hover:ring-2 hover:ring-slate-300 dark:hover:ring-slate-600 hover:ring-offset-2 dark:hover:ring-offset-slate-900 transition-all duration-200 hover:scale-105 cursor-pointer border border-slate-200 dark:border-slate-700"
+      className={`relative p-6 bg-white dark:bg-slate-800 shadow-md hover:shadow-xl hover:ring-2 hover:ring-slate-300 dark:hover:ring-slate-600 hover:ring-offset-2 dark:hover:ring-offset-slate-900 transition-all duration-200 hover:scale-105 cursor-pointer border ${isPlanningMode ? 'border-blue-300 dark:border-blue-600 ring-1 ring-blue-200 dark:ring-blue-800' : 'border-slate-200 dark:border-slate-700'}`}
       onClick={() => onEdit(deadline)}
     >
-      {/* 3-dot menu */}
+      {/* Planning mode input OR 3-dot menu */}
+      {isPlanningMode ? (
+        <div className="absolute -top-3 -right-3 z-10">
+          <PlanningModeInput deadline={deadline} onUpdate={onUpdateDaysNeeded} />
+        </div>
+      ) : (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
@@ -76,6 +82,7 @@ const DeadlineCard = ({ deadline, timeLeft, progressColor, progressPercentage, i
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      )}
 
       {/* Badge for deadline type */}
       <div className="absolute -top-2 -left-2">

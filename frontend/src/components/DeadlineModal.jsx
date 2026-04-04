@@ -58,6 +58,20 @@ const DeadlineModal = ({ isOpen, onOpenChange, editingDeadline, formData, setFor
             />
           </div>
 
+          <div>
+            <Label htmlFor="daysNeeded" className="text-slate-700 dark:text-slate-300">Days needed (optional)</Label>
+            <Input
+              id="daysNeeded"
+              type="number"
+              min="1"
+              max="365"
+              value={formData.daysNeeded || ''}
+              onChange={(e) => setFormData(prev => ({ ...prev, daysNeeded: e.target.value }))}
+              placeholder="How many days to complete?"
+              className="mt-1"
+            />
+          </div>
+
           {/* Recurring Options */}
           <div className="space-y-3 border-t pt-4">
             <div className="flex items-center space-x-2">
