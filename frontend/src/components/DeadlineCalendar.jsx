@@ -3,7 +3,6 @@ import { DayPicker } from 'react-day-picker';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { buttonVariants } from './ui/button';
-import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 import {
   computeWorkPeriods,
   computeManualWorkPeriods,
@@ -69,94 +68,93 @@ const DeadlineCalendar = ({ deadlines, isPlanningMode, planningSubMode, manualPl
     const isManualPainting = planningSubMode === 'manual' && manualActiveDeadlineId;
     const isManualDayForActive = isManualPainting && manualPlan?.[manualActiveDeadlineId]?.days?.includes(dayKey);
 
+    const hasTooltip = deadlinesForDay.length > 0 || isDueDate;
+
     return (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div
-            className={cn(
-              'relative flex flex-col items-center justify-center w-10 h-10 rounded-md transition-all duration-150',
-              overlapCount > 0 && 'ring-1 ring-inset ring-slate-200/50 dark:ring-slate-600/50',
-              isDueDate && 'font-bold',
-              isManualPainting && 'cursor-pointer hover:ring-2 hover:ring-blue-300 dark:hover:ring-blue-600',
-              isManualDayForActive && 'ring-2 ring-blue-400 dark:ring-blue-500'
-            )}
-            style={bgStyle}
-            onClick={isManualPainting ? (e) => { e.stopPropagation(); onDayClick?.(dayKey); } : undefined}
-          >
-            <span
-              className={cn(
-                'text-sm leading-none z-10',
-                isDueDate && 'text-red-600 dark:text-red-400 font-black'
-              )}
-            >
-              {date.getDate()}
-            </span>
+      <div
+        className={cn(
+          'group/day relative flex flex-col items-center justify-center w-10 h-10 rounded-md transition-all duration-150',
+          overlapCount > 0 && 'ring-1 ring-inset ring-slate-200/50 dark:ring-slate-600/50',
+          isDueDate && 'font-bold',
+          isManualPainting && 'cursor-pointer hover:ring-2 hover:ring-blue-300 dark:hover:ring-blue-600',
+          isManualDayForActive && 'ring-2 ring-blue-400 dark:ring-blue-500'
+        )}
+        style={bgStyle}
+        onClick={isManualPainting ? (e) => { e.stopPropagation(); onDayClick?.(dayKey); } : undefined}
+      >
+        <span
+          className={cn(
+            'text-sm leading-none z-10',
+            isDueDate && 'text-red-600 dark:text-red-400 font-black'
+          )}
+        >
+          {date.getDate()}
+        </span>
 
-            {/* Colored dots for each deadline */}
-            {deadlinesForDay.length > 0 && (
-              <div className="absolute bottom-0.5 flex gap-0.5 items-center">
-                {deadlinesForDay.slice(0, 3).map(({ deadlineId, colorIndex }) => (
-                  <span
-                    key={deadlineId}
-                    className={cn(
-                      'w-1.5 h-1.5 rounded-full',
-                      DOT_COLORS[colorIndex] || DOT_COLORS[0]
-                    )}
-                  />
-                ))}
-                {deadlinesForDay.length > 3 && (
-                  <span className="text-[8px] text-slate-500 dark:text-slate-400 leading-none">
-                    +{deadlinesForDay.length - 3}
-                  </span>
+        {/* Colored dots for each deadline */}
+        {deadlinesForDay.length > 0 && (
+          <div className="absolute bottom-0.5 flex gap-0.5 items-center">
+            {deadlinesForDay.slice(0, 3).map(({ deadlineId, colorIndex }) => (
+              <span
+                key={deadlineId}
+                className={cn(
+                  'w-1.5 h-1.5 rounded-full',
+                  DOT_COLORS[colorIndex] || DOT_COLORS[0]
                 )}
-              </div>
-            )}
-
-            {/* Due date marker */}
-            {isDueDate && !deadlinesForDay.length && (
-              <div className="absolute bottom-0.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-red-500 block" />
-              </div>
+              />
+            ))}
+            {deadlinesForDay.length > 3 && (
+              <span className="text-[8px] text-slate-500 dark:text-slate-400 leading-none">
+                +{deadlinesForDay.length - 3}
+              </span>
             )}
           </div>
-        </TooltipTrigger>
-        {(deadlinesForDay.length > 0 || isDueDate) && (
-          <TooltipContent
-            side="top"
-            className="max-w-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-lg"
-          >
-            <div className="space-y-1">
-              {isDueDate && (
-                <div className="text-xs font-semibold text-red-600 dark:text-red-400">
-                  Deadline day
-                </div>
-              )}
-              {deadlinesForDay.map(({ deadlineId, colorIndex, deadline }) => {
-                const isManual = isManualEntry(deadlineId);
-                const sourceId = deadlineId.startsWith('m_') ? deadlineId.slice(2) : deadlineId;
-                return (
-                  <div key={deadlineId} className="flex items-center gap-2 text-xs">
-                    <span
-                      className={cn('w-2 h-2 rounded-full shrink-0', DOT_COLORS[colorIndex] || DOT_COLORS[0])}
-                    />
-                    <span className="text-slate-700 dark:text-slate-300 font-medium">
-                      {deadline.name}
-                    </span>
-                    <span className="text-slate-500 dark:text-slate-400">
-                      {isManual ? `${manualPlan[sourceId]?.days?.length || 0}d manual` : `${deadline.daysNeeded}d`}
-                    </span>
-                  </div>
-                );
-              })}
-              {overlapCount >= 2 && (
-                <div className="text-[10px] text-amber-600 dark:text-amber-400 font-medium pt-0.5 border-t border-slate-100 dark:border-slate-700">
-                  {overlapCount} tasks overlap
-                </div>
-              )}
-            </div>
-          </TooltipContent>
         )}
-      </Tooltip>
+
+        {/* Due date marker */}
+        {isDueDate && !deadlinesForDay.length && (
+          <div className="absolute bottom-0.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-red-500 block" />
+          </div>
+        )}
+
+        {/* CSS hover tooltip — no portal, no flicker */}
+        {hasTooltip && (
+          <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1 z-50 opacity-0 group-hover/day:opacity-100 transition-opacity duration-150">
+            <div className="max-w-xs rounded-md px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-lg whitespace-nowrap">
+              <div className="space-y-1">
+                {isDueDate && (
+                  <div className="text-xs font-semibold text-red-600 dark:text-red-400">
+                    Deadline day
+                  </div>
+                )}
+                {deadlinesForDay.map(({ deadlineId, colorIndex, deadline }) => {
+                  const isManual = isManualEntry(deadlineId);
+                  const sourceId = deadlineId.startsWith('m_') ? deadlineId.slice(2) : deadlineId;
+                  return (
+                    <div key={deadlineId} className="flex items-center gap-2 text-xs">
+                      <span
+                        className={cn('w-2 h-2 rounded-full shrink-0', DOT_COLORS[colorIndex] || DOT_COLORS[0])}
+                      />
+                      <span className="text-slate-700 dark:text-slate-300 font-medium">
+                        {deadline.name}
+                      </span>
+                      <span className="text-slate-500 dark:text-slate-400">
+                        {isManual ? `${manualPlan[sourceId]?.days?.length || 0}d manual` : `${deadline.daysNeeded}d`}
+                      </span>
+                    </div>
+                  );
+                })}
+                {overlapCount >= 2 && (
+                  <div className="text-[10px] text-amber-600 dark:text-amber-400 font-medium pt-0.5 border-t border-slate-100 dark:border-slate-700">
+                    {overlapCount} tasks overlap
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     );
   };
 
