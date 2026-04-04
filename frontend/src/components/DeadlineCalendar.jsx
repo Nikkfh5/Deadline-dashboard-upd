@@ -120,7 +120,7 @@ const DeadlineCalendar = ({ deadlines, isPlanningMode, planningSubMode, manualPl
 
         {/* CSS hover tooltip — no portal, no flicker */}
         {hasTooltip && (
-          <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1 z-50 opacity-0 group-hover/day:opacity-100 transition-opacity duration-150">
+          <div className="absolute bottom-full left-1/2 -translate-x-1/2 pb-1 z-50 opacity-0 group-hover/day:opacity-100 transition-opacity duration-150">
             <div className="max-w-xs rounded-md px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-lg whitespace-nowrap">
               <div className="space-y-1">
                 {isDueDate && (
