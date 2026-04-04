@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { DayPicker } from 'react-day-picker';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -16,9 +16,7 @@ import {
 import { isSameDay, startOfDay, format } from 'date-fns';
 
 const DeadlineCalendar = ({ deadlines, isPlanningMode, planningSubMode, manualPlan, onDayClick, manualActiveDeadlineId }) => {
-  const [hoveredDay, setHoveredDay] = useState(null);
-
-  const autoWorkPeriods = useMemo(() => computeWorkPeriods(deadlines), [deadlines]);
+  const autoWorkPeriods = useMemo(() => computeWorkPeriods(deadlines, manualPlan), [deadlines, manualPlan]);
   const manualWorkPeriods = useMemo(
     () => computeManualWorkPeriods(deadlines, manualPlan || {}),
     [deadlines, manualPlan]
@@ -83,8 +81,6 @@ const DeadlineCalendar = ({ deadlines, isPlanningMode, planningSubMode, manualPl
               isManualDayForActive && 'ring-2 ring-blue-400 dark:ring-blue-500'
             )}
             style={bgStyle}
-            onMouseEnter={() => setHoveredDay(dayKey)}
-            onMouseLeave={() => setHoveredDay(null)}
             onClick={isManualPainting ? (e) => { e.stopPropagation(); onDayClick?.(dayKey); } : undefined}
           >
             <span

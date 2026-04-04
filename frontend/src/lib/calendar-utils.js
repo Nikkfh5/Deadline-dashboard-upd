@@ -41,11 +41,29 @@ export const MANUAL_BG_COLORS = [
  * Color is based on deadline's index in the FULL array (not filtered),
  * so adding/removing daysNeeded from one deadline doesn't shift others.
  */
-function buildColorMap(deadlines) {
-  const colorMap = new Map();
-  deadlines.forEach((d, i) => {
-    colorMap.set(d.id, i % 8);
+function buildColorMap(deadlines, manualPlan = {}) {
+  // Collect color indices already used by manual planning
+  const usedByManual = new Set();
+  Object.values(manualPlan).forEach((entry) => {
+    if (entry.days?.length > 0 && entry.colorIndex != null) {
+      usedByManual.add(entry.colorIndex);
+    }
   });
+
+  const colorMap = new Map();
+  let nextFree = 0;
+
+  deadlines.forEach((d) => {
+    // Find next color index not used by manual (if possible)
+    if (usedByManual.size < 8) {
+      while (usedByManual.has(nextFree) && nextFree < 8) {
+        nextFree++;
+      }
+    }
+    colorMap.set(d.id, nextFree % 8);
+    nextFree++;
+  });
+
   return colorMap;
 }
 
@@ -53,9 +71,9 @@ function buildColorMap(deadlines) {
  * For each deadline with daysNeeded, compute the work period dates.
  * Returns Map<deadlineId, { dates: Date[], colorIndex: number, deadline }>
  */
-export function computeWorkPeriods(deadlines) {
+export function computeWorkPeriods(deadlines, manualPlan = {}) {
   const periods = new Map();
-  const colorMap = buildColorMap(deadlines);
+  const colorMap = buildColorMap(deadlines, manualPlan);
 
   deadlines.forEach((deadline) => {
     if (!deadline.daysNeeded || deadline.daysNeeded < 1) return;
