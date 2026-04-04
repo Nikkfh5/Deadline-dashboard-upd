@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Clock, Plus, Moon, Sun, ChevronDown, ChevronUp, Calendar as CalendarIcon, LayoutGrid } from 'lucide-react';
 import { Button } from './ui/button';
 import { TooltipProvider } from './ui/tooltip';
@@ -62,6 +62,12 @@ const DeadlineTracker = () => {
   const [manualActiveDeadlineId, setManualActiveDeadlineId] = useState(null);
   const { snapshots, saveSnapshot, deleteSnapshot, exportSnapshotAsText } = useSnapshots();
   const { manualPlan, toggleDay, setColor, clearDeadline, clearAll: clearAllManual, loadManualPlan } = useManualPlan();
+  const handleDayClick = useCallback((dateKey) => {
+    if (manualActiveDeadlineId) {
+      toggleDay(manualActiveDeadlineId, dateKey);
+    }
+  }, [manualActiveDeadlineId, toggleDay]);
+
   const [statsKey, setStatsKey] = useState(0);
   const refreshStats = () => setStatsKey(k => k + 1);
   const [darkMode, setDarkMode] = useState(() => {
@@ -671,11 +677,7 @@ const DeadlineTracker = () => {
                   planningSubMode={planningSubMode}
                   manualPlan={manualPlan}
                   manualActiveDeadlineId={manualActiveDeadlineId}
-                  onDayClick={(dateKey) => {
-                    if (manualActiveDeadlineId) {
-                      toggleDay(manualActiveDeadlineId, dateKey);
-                    }
-                  }}
+                  onDayClick={handleDayClick}
                 />
               </CollapsibleContent>
             </Collapsible>
