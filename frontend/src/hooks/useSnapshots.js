@@ -17,7 +17,7 @@ export function useSnapshots() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   };
 
-  const saveSnapshot = (name, deadlines) => {
+  const saveSnapshot = (name, deadlines, manualPlan) => {
     const snapshot = {
       id: Date.now().toString(),
       name: name.trim() || `Snapshot ${new Date().toLocaleDateString()}`,
@@ -29,6 +29,7 @@ export function useSnapshots() {
         dueDate: d.dueDate,
         daysNeeded: d.daysNeeded,
       })),
+      manualPlan: manualPlan || {},
     };
     const next = [snapshot, ...snapshots];
     persist(next);

@@ -5,6 +5,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './ui/dropdown-menu';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
+import { cn } from '../lib/utils';
+import { MANUAL_DOT_COLORS } from '../lib/calendar-utils';
 import CircularProgress from './CircularProgress';
 import PlanningModeInput from './PlanningModeInput';
 
@@ -13,17 +15,41 @@ const truncateText = (text, maxLength = 25) => {
   return text.substring(0, maxLength) + '...';
 };
 
-const DeadlineCard = ({ deadline, timeLeft, progressColor, progressPercentage, isPulsing, onEdit, onDelete, onComplete, onRepeat, isRegularSection, isPlanningMode, onUpdateDaysNeeded }) => {
+const DeadlineCard = ({ deadline, timeLeft, progressColor, progressPercentage, isPulsing, onEdit, onDelete, onComplete, onRepeat, isRegularSection, isPlanningMode, onUpdateDaysNeeded, planningSubMode, onSelectForManual, isManualSelected, manualColorIndex }) => {
   const showRepeatButton = deadline.isRecurring && timeLeft.isOverdue;
+  const isManualMode = isPlanningMode && planningSubMode === 'manual';
+
+  const handleClick = () => {
+    if (isManualMode) {
+      onSelectForManual?.(deadline.id);
+    } else {
+      onEdit(deadline);
+    }
+  };
+
+  const manualSelectedRingColor = isManualSelected
+    ? 'ring-2 ring-offset-2 dark:ring-offset-slate-900 ring-blue-400 dark:ring-blue-500 border-blue-400 dark:border-blue-500'
+    : '';
 
   return (
     <Card
       key={deadline.id}
-      className={`relative p-6 bg-white dark:bg-slate-800 shadow-md hover:shadow-xl hover:ring-2 hover:ring-slate-300 dark:hover:ring-slate-600 hover:ring-offset-2 dark:hover:ring-offset-slate-900 transition-all duration-200 hover:scale-105 cursor-pointer border ${isPlanningMode ? 'border-blue-300 dark:border-blue-600 ring-1 ring-blue-200 dark:ring-blue-800' : 'border-slate-200 dark:border-slate-700'}`}
-      onClick={() => onEdit(deadline)}
+      className={cn(
+        'relative p-6 bg-white dark:bg-slate-800 shadow-md hover:shadow-xl hover:ring-2 hover:ring-slate-300 dark:hover:ring-slate-600 hover:ring-offset-2 dark:hover:ring-offset-slate-900 transition-all duration-200 hover:scale-105 cursor-pointer border',
+        isManualMode && isManualSelected ? manualSelectedRingColor
+          : isPlanningMode ? 'border-blue-300 dark:border-blue-600 ring-1 ring-blue-200 dark:ring-blue-800'
+          : 'border-slate-200 dark:border-slate-700'
+      )}
+      onClick={handleClick}
     >
-      {/* Planning mode input OR 3-dot menu */}
-      {isPlanningMode ? (
+      {/* Planning mode input / manual indicator / 3-dot menu */}
+      {isManualMode ? (
+        manualColorIndex != null && (
+          <div className="absolute -top-2 -right-2 z-10">
+            <span className={cn('block w-4 h-4 rounded-full ring-2 ring-white dark:ring-slate-800', MANUAL_DOT_COLORS[manualColorIndex] || MANUAL_DOT_COLORS[0])} />
+          </div>
+        )
+      ) : isPlanningMode ? (
         <div className="absolute -top-3 -right-3 z-10">
           <PlanningModeInput deadline={deadline} onUpdate={onUpdateDaysNeeded} />
         </div>

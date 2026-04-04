@@ -9,14 +9,45 @@ export const CHART_COLORS = [
   'var(--chart-5)',
 ];
 
-// Tailwind-safe color classes for dots
+// Tailwind-safe color classes for dots (same as manual palette)
 export const DOT_COLORS = [
-  'bg-orange-400',
-  'bg-teal-500',
-  'bg-sky-700',
+  'bg-red-400',
+  'bg-blue-500',
+  'bg-emerald-500',
   'bg-amber-400',
-  'bg-rose-400',
+  'bg-purple-500',
+  'bg-pink-400',
+  'bg-cyan-500',
+  'bg-lime-500',
 ];
+
+// Alias for backward compat — same palette used everywhere
+export const MANUAL_DOT_COLORS = DOT_COLORS;
+
+// HSLA background colors for manual mode (higher opacity, matching MANUAL_DOT_COLORS)
+export const MANUAL_BG_COLORS = [
+  'hsla(0, 72%, 51%, 0.25)',      // red
+  'hsla(217, 91%, 60%, 0.25)',    // blue
+  'hsla(160, 84%, 39%, 0.25)',    // emerald
+  'hsla(38, 92%, 50%, 0.25)',     // amber
+  'hsla(271, 91%, 65%, 0.25)',    // purple
+  'hsla(330, 81%, 60%, 0.25)',    // pink
+  'hsla(188, 94%, 43%, 0.25)',    // cyan
+  'hsla(84, 81%, 44%, 0.25)',     // lime
+];
+
+/**
+ * Assign stable, non-repeating colors to deadlines.
+ * Color is based on deadline's index in the FULL array (not filtered),
+ * so adding/removing daysNeeded from one deadline doesn't shift others.
+ */
+function buildColorMap(deadlines) {
+  const colorMap = new Map();
+  deadlines.forEach((d, i) => {
+    colorMap.set(d.id, i % 8);
+  });
+  return colorMap;
+}
 
 /**
  * For each deadline with daysNeeded, compute the work period dates.
@@ -24,7 +55,7 @@ export const DOT_COLORS = [
  */
 export function computeWorkPeriods(deadlines) {
   const periods = new Map();
-  let colorIdx = 0;
+  const colorMap = buildColorMap(deadlines);
 
   deadlines.forEach((deadline) => {
     if (!deadline.daysNeeded || deadline.daysNeeded < 1) return;
@@ -36,14 +67,60 @@ export function computeWorkPeriods(deadlines) {
 
     periods.set(deadline.id, {
       dates,
-      colorIndex: colorIdx % 5,
+      colorIndex: colorMap.get(deadline.id),
       deadline,
     });
-
-    colorIdx++;
   });
 
   return periods;
+}
+
+/**
+ * Convert manual plan into the same Map format as computeWorkPeriods.
+ * manualPlan: { [deadlineId]: { colorIndex, days: string[] } }
+ */
+export function computeManualWorkPeriods(deadlines, manualPlan) {
+  const periods = new Map();
+  const deadlineById = new Map(deadlines.map((d) => [d.id, d]));
+
+  Object.entries(manualPlan).forEach(([deadlineId, entry]) => {
+    if (!entry.days || entry.days.length === 0) return;
+    const deadline = deadlineById.get(deadlineId);
+    if (!deadline) return;
+
+    const dates = entry.days.map((d) => startOfDay(new Date(d + 'T00:00:00')));
+    periods.set(deadlineId, {
+      dates,
+      colorIndex: entry.colorIndex,
+      deadline,
+    });
+  });
+
+  return periods;
+}
+
+/**
+ * Merge auto and manual work periods — always show both.
+ * If a deadline has both auto (daysNeeded) and manual days, both are shown
+ * with manual using a 'm_' prefix key to distinguish from auto.
+ */
+export function mergeWorkPeriods(autoWP, manualWP) {
+  const merged = new Map();
+
+  autoWP.forEach((value, deadlineId) => {
+    merged.set(deadlineId, value);
+  });
+
+  manualWP.forEach((value, deadlineId) => {
+    if (merged.has(deadlineId)) {
+      // Both auto and manual exist — add manual with prefix
+      merged.set('m_' + deadlineId, value);
+    } else {
+      merged.set(deadlineId, value);
+    }
+  });
+
+  return merged;
 }
 
 /**
@@ -109,7 +186,7 @@ export function buildModifiers(deadlines, workPeriods) {
   };
 
   // Work period modifiers per color index
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 8; i++) {
     modifiers[`wp${i}`] = [];
   }
 

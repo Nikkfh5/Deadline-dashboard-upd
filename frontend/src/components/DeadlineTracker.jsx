@@ -10,7 +10,9 @@ import DeadlineCard from './DeadlineCard';
 import DeadlineModal from './DeadlineModal';
 import DeadlineCalendar from './DeadlineCalendar';
 import SnapshotManager from './SnapshotManager';
+import ManualPlanningToolbar from './ManualPlanningToolbar';
 import { useSnapshots } from '../hooks/useSnapshots';
+import { useManualPlan } from '../hooks/useManualPlan';
 
 // Normalize snake_case server response to camelCase frontend format
 const normalizeServerDeadline = (d) => ({
@@ -56,7 +58,10 @@ const DeadlineTracker = () => {
   const [isTemporaryCollapsed, setIsTemporaryCollapsed] = useState(true);
   const [isCalendarCollapsed, setIsCalendarCollapsed] = useState(true);
   const [isPlanningMode, setIsPlanningMode] = useState(false);
+  const [planningSubMode, setPlanningSubMode] = useState('auto');
+  const [manualActiveDeadlineId, setManualActiveDeadlineId] = useState(null);
   const { snapshots, saveSnapshot, deleteSnapshot, exportSnapshotAsText } = useSnapshots();
+  const { manualPlan, toggleDay, setColor, clearDeadline, clearAll: clearAllManual, loadManualPlan } = useManualPlan();
   const [statsKey, setStatsKey] = useState(0);
   const refreshStats = () => setStatsKey(k => k + 1);
   const [darkMode, setDarkMode] = useState(() => {
@@ -391,6 +396,8 @@ const DeadlineTracker = () => {
 
   const handleDeleteDeadline = (id) => {
     setDeadlines(prev => prev.filter(d => d.id !== id));
+    clearDeadline(id);
+    if (manualActiveDeadlineId === id) setManualActiveDeadlineId(null);
     if (hasToken()) {
       deleteDeadlineApi(id).then(refreshStats);
     }
@@ -429,6 +436,15 @@ const DeadlineTracker = () => {
         isRegularSection={isRegularSection}
         isPlanningMode={isPlanningMode}
         onUpdateDaysNeeded={updateDaysNeeded}
+        planningSubMode={planningSubMode}
+        onSelectForManual={(id) => {
+          setManualActiveDeadlineId(id === manualActiveDeadlineId ? null : id);
+          if (!manualPlan[id]) {
+            setColor(id, 0);
+          }
+        }}
+        isManualSelected={manualActiveDeadlineId === deadline.id}
+        manualColorIndex={manualPlan[deadline.id]?.colorIndex}
       />
     );
   };
@@ -470,7 +486,12 @@ const DeadlineTracker = () => {
               onClick={() => {
                 const next = !isPlanningMode;
                 setIsPlanningMode(next);
-                if (next) setIsCalendarCollapsed(false);
+                if (next) {
+                  setIsCalendarCollapsed(false);
+                } else {
+                  setPlanningSubMode('auto');
+                  setManualActiveDeadlineId(null);
+                }
               }}
               variant={isPlanningMode ? 'default' : 'outline'}
               className={isPlanningMode
@@ -483,22 +504,86 @@ const DeadlineTracker = () => {
             </Button>
 
             {isPlanningMode && (
-              <SnapshotManager
-                snapshots={snapshots}
-                deadlines={deadlines}
-                onSave={saveSnapshot}
-                onDelete={deleteSnapshot}
-                onLoad={(snapshot) => {
-                  const snapshotMap = new Map(snapshot.deadlines.map(d => [d.id, d.daysNeeded]));
-                  setDeadlines(prev => prev.map(d => ({
-                    ...d,
-                    daysNeeded: snapshotMap.has(d.id) ? snapshotMap.get(d.id) : d.daysNeeded
-                  })));
-                }}
-                onExportText={exportSnapshotAsText}
-              />
+              <>
+                <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5">
+                  <button
+                    onClick={() => { setPlanningSubMode('auto'); setManualActiveDeadlineId(null); }}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                      planningSubMode === 'auto'
+                        ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 shadow-sm'
+                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+                    }`}
+                  >
+                    Auto
+                  </button>
+                  <button
+                    onClick={() => setPlanningSubMode('manual')}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                      planningSubMode === 'manual'
+                        ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 shadow-sm'
+                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+                    }`}
+                  >
+                    Manual
+                  </button>
+                </div>
+
+                <SnapshotManager
+                  snapshots={snapshots}
+                  deadlines={deadlines}
+                  onSave={saveSnapshot}
+                  onDelete={deleteSnapshot}
+                  onLoad={(snapshot) => {
+                    const snapshotMap = new Map(snapshot.deadlines.map(d => [d.id, d.daysNeeded]));
+                    setDeadlines(prev => prev.map(d => ({
+                      ...d,
+                      daysNeeded: snapshotMap.has(d.id) ? snapshotMap.get(d.id) : d.daysNeeded
+                    })));
+                    if (snapshot.manualPlan) {
+                      loadManualPlan(snapshot.manualPlan);
+                    }
+                  }}
+                  onExportText={exportSnapshotAsText}
+                  manualPlan={manualPlan}
+                />
+              </>
             )}
           </div>
+
+          {/* Planning toolbars */}
+          {isPlanningMode && planningSubMode === 'auto' && deadlines.some(d => d.daysNeeded) && (
+            <div className="flex justify-center mb-6">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setDeadlines(prev => prev.map(d => ({ ...d, daysNeeded: null })))}
+                className="h-8 text-xs text-red-600 dark:text-red-400 border-red-300 dark:border-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+              >
+                Clear All Auto
+              </Button>
+            </div>
+          )}
+          {isPlanningMode && planningSubMode === 'manual' && (
+            <div className="flex justify-center items-center gap-3 mb-6">
+              <ManualPlanningToolbar
+                selectedDeadline={deadlines.find(d => d.id === manualActiveDeadlineId)}
+                selectedColorIndex={manualPlan[manualActiveDeadlineId]?.colorIndex ?? 0}
+                onColorChange={(colorIndex) => manualActiveDeadlineId && setColor(manualActiveDeadlineId, colorIndex)}
+                onClear={() => manualActiveDeadlineId && clearDeadline(manualActiveDeadlineId)}
+                dayCount={manualPlan[manualActiveDeadlineId]?.days?.length || 0}
+              />
+              {Object.keys(manualPlan).some(id => manualPlan[id]?.days?.length > 0) && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => { clearAllManual(); setManualActiveDeadlineId(null); }}
+                  className="h-8 text-xs text-red-600 dark:text-red-400 border-red-300 dark:border-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+                >
+                  Clear All Manual
+                </Button>
+              )}
+            </div>
+          )}
 
           {/* Deadlines Sections */}
           {deadlines.length === 0 ? (
@@ -583,6 +668,14 @@ const DeadlineTracker = () => {
                 <DeadlineCalendar
                   deadlines={deadlines}
                   isPlanningMode={isPlanningMode}
+                  planningSubMode={planningSubMode}
+                  manualPlan={manualPlan}
+                  manualActiveDeadlineId={manualActiveDeadlineId}
+                  onDayClick={(dateKey) => {
+                    if (manualActiveDeadlineId) {
+                      toggleDay(manualActiveDeadlineId, dateKey);
+                    }
+                  }}
                 />
               </CollapsibleContent>
             </Collapsible>

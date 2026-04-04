@@ -4,14 +4,14 @@ import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
 import { Input } from './ui/input';
 
-const SnapshotManager = ({ snapshots, onSave, onDelete, onLoad, onExportText, deadlines }) => {
+const SnapshotManager = ({ snapshots, onSave, onDelete, onLoad, onExportText, deadlines, manualPlan }) => {
   const [saveName, setSaveName] = useState('');
   const [isSaveOpen, setIsSaveOpen] = useState(false);
   const [isListOpen, setIsListOpen] = useState(false);
   const [copiedId, setCopiedId] = useState(null);
 
   const handleSave = () => {
-    onSave(saveName, deadlines);
+    onSave(saveName, deadlines, manualPlan);
     setSaveName('');
     setIsSaveOpen(false);
   };

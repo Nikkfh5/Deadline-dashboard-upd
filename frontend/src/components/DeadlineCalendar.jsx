@@ -6,17 +6,43 @@ import { buttonVariants } from './ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 import {
   computeWorkPeriods,
+  computeManualWorkPeriods,
+  mergeWorkPeriods,
   computeDayOverlapMap,
   getDeadlinesForDay,
   DOT_COLORS,
+  MANUAL_BG_COLORS,
 } from '../lib/calendar-utils';
 import { isSameDay, startOfDay, format } from 'date-fns';
 
-const DeadlineCalendar = ({ deadlines, isPlanningMode }) => {
+const DeadlineCalendar = ({ deadlines, isPlanningMode, planningSubMode, manualPlan, onDayClick, manualActiveDeadlineId }) => {
   const [hoveredDay, setHoveredDay] = useState(null);
 
-  const workPeriods = useMemo(() => computeWorkPeriods(deadlines), [deadlines]);
+  const autoWorkPeriods = useMemo(() => computeWorkPeriods(deadlines), [deadlines]);
+  const manualWorkPeriods = useMemo(
+    () => computeManualWorkPeriods(deadlines, manualPlan || {}),
+    [deadlines, manualPlan]
+  );
+  const workPeriods = useMemo(
+    () => mergeWorkPeriods(autoWorkPeriods, manualWorkPeriods),
+    [autoWorkPeriods, manualWorkPeriods]
+  );
   const overlapMap = useMemo(() => computeDayOverlapMap(workPeriods), [workPeriods]);
+
+  // Set of manual entry IDs (includes m_ prefixed and plain manual-only)
+  const manualIdSet = useMemo(() => {
+    const set = new Set();
+    workPeriods.forEach((_, id) => {
+      if (id.startsWith('m_')) {
+        set.add(id);
+      } else if (manualPlan?.[id]?.days?.length > 0 && !workPeriods.has('m_' + id)) {
+        set.add(id);
+      }
+    });
+    return set;
+  }, [workPeriods, manualPlan]);
+
+  const isManualEntry = (id) => manualIdSet.has(id);
 
   const dueDates = useMemo(
     () => deadlines.map((d) => startOfDay(new Date(d.dueDate))),
@@ -35,19 +61,15 @@ const DeadlineCalendar = ({ deadlines, isPlanningMode }) => {
     let bgStyle = {};
     if (overlapCount === 1) {
       const { colorIndex } = deadlinesForDay[0];
-      const colors = [
-        'hsla(12, 76%, 61%, 0.12)',
-        'hsla(173, 58%, 39%, 0.12)',
-        'hsla(197, 37%, 24%, 0.12)',
-        'hsla(43, 74%, 66%, 0.12)',
-        'hsla(27, 87%, 67%, 0.12)',
-      ];
-      bgStyle = { backgroundColor: colors[colorIndex] };
+      bgStyle = { backgroundColor: MANUAL_BG_COLORS[colorIndex] || MANUAL_BG_COLORS[0] };
     } else if (overlapCount === 2) {
       bgStyle = { backgroundColor: 'hsla(173, 58%, 39%, 0.22)' };
     } else if (overlapCount >= 3) {
       bgStyle = { backgroundColor: 'hsla(12, 76%, 61%, 0.32)' };
     }
+
+    const isManualPainting = planningSubMode === 'manual' && manualActiveDeadlineId;
+    const isManualDayForActive = isManualPainting && manualPlan?.[manualActiveDeadlineId]?.days?.includes(dayKey);
 
     return (
       <Tooltip>
@@ -56,11 +78,14 @@ const DeadlineCalendar = ({ deadlines, isPlanningMode }) => {
             className={cn(
               'relative flex flex-col items-center justify-center w-10 h-10 rounded-md transition-all duration-150',
               overlapCount > 0 && 'ring-1 ring-inset ring-slate-200/50 dark:ring-slate-600/50',
-              isDueDate && 'font-bold'
+              isDueDate && 'font-bold',
+              isManualPainting && 'cursor-pointer hover:ring-2 hover:ring-blue-300 dark:hover:ring-blue-600',
+              isManualDayForActive && 'ring-2 ring-blue-400 dark:ring-blue-500'
             )}
             style={bgStyle}
             onMouseEnter={() => setHoveredDay(dayKey)}
             onMouseLeave={() => setHoveredDay(null)}
+            onClick={isManualPainting ? (e) => { e.stopPropagation(); onDayClick?.(dayKey); } : undefined}
           >
             <span
               className={cn(
@@ -79,7 +104,7 @@ const DeadlineCalendar = ({ deadlines, isPlanningMode }) => {
                     key={deadlineId}
                     className={cn(
                       'w-1.5 h-1.5 rounded-full',
-                      DOT_COLORS[colorIndex]
+                      DOT_COLORS[colorIndex] || DOT_COLORS[0]
                     )}
                   />
                 ))}
@@ -110,19 +135,23 @@ const DeadlineCalendar = ({ deadlines, isPlanningMode }) => {
                   Deadline day
                 </div>
               )}
-              {deadlinesForDay.map(({ deadlineId, colorIndex, deadline }) => (
-                <div key={deadlineId} className="flex items-center gap-2 text-xs">
-                  <span
-                    className={cn('w-2 h-2 rounded-full shrink-0', DOT_COLORS[colorIndex])}
-                  />
-                  <span className="text-slate-700 dark:text-slate-300 font-medium">
-                    {deadline.name}
-                  </span>
-                  <span className="text-slate-500 dark:text-slate-400">
-                    {deadline.daysNeeded}d
-                  </span>
-                </div>
-              ))}
+              {deadlinesForDay.map(({ deadlineId, colorIndex, deadline }) => {
+                const isManual = isManualEntry(deadlineId);
+                const sourceId = deadlineId.startsWith('m_') ? deadlineId.slice(2) : deadlineId;
+                return (
+                  <div key={deadlineId} className="flex items-center gap-2 text-xs">
+                    <span
+                      className={cn('w-2 h-2 rounded-full shrink-0', DOT_COLORS[colorIndex] || DOT_COLORS[0])}
+                    />
+                    <span className="text-slate-700 dark:text-slate-300 font-medium">
+                      {deadline.name}
+                    </span>
+                    <span className="text-slate-500 dark:text-slate-400">
+                      {isManual ? `${manualPlan[sourceId]?.days?.length || 0}d manual` : `${deadline.daysNeeded}d`}
+                    </span>
+                  </div>
+                );
+              })}
               {overlapCount >= 2 && (
                 <div className="text-[10px] text-amber-600 dark:text-amber-400 font-medium pt-0.5 border-t border-slate-100 dark:border-slate-700">
                   {overlapCount} tasks overlap
@@ -138,11 +167,20 @@ const DeadlineCalendar = ({ deadlines, isPlanningMode }) => {
   // Legend
   const activeWorkPeriods = useMemo(() => {
     const items = [];
-    workPeriods.forEach(({ colorIndex, deadline }) => {
-      items.push({ name: deadline.name, colorIndex, daysNeeded: deadline.daysNeeded });
+    workPeriods.forEach(({ colorIndex, deadline }, deadlineId) => {
+      const realId = deadlineId.startsWith('m_') ? deadlineId.slice(2) : deadlineId;
+      const isManual = deadlineId.startsWith('m_') || (manualPlan?.[realId]?.days?.length > 0 && !workPeriods.has('m_' + realId));
+      const manual = manualPlan?.[realId];
+      items.push({
+        name: deadline.name,
+        colorIndex,
+        daysNeeded: deadline.daysNeeded,
+        isManual,
+        manualDayCount: isManual ? (manual?.days?.length || 0) : 0,
+      });
     });
     return items;
-  }, [workPeriods]);
+  }, [workPeriods, manualPlan]);
 
   const numberOfMonths = isPlanningMode ? 2 : 1;
 
@@ -195,18 +233,18 @@ const DeadlineCalendar = ({ deadlines, isPlanningMode }) => {
               Work Periods
             </h4>
             <div className="space-y-2">
-              {activeWorkPeriods.map(({ name, colorIndex, daysNeeded }, idx) => (
-                <div key={idx} className="flex items-center gap-2">
-                  <span
-                    className={cn('w-3 h-3 rounded-sm shrink-0', DOT_COLORS[colorIndex])}
-                  />
-                  <span className="text-xs text-slate-700 dark:text-slate-300 font-medium truncate">
-                    {name}
-                  </span>
-                  <span className="text-[10px] text-slate-400 dark:text-slate-500 ml-auto whitespace-nowrap">
-                    {daysNeeded}d
-                  </span>
-                </div>
+              {activeWorkPeriods.map(({ name, colorIndex, daysNeeded, isManual, manualDayCount }, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <span
+                      className={cn('w-3 h-3 rounded-sm shrink-0', DOT_COLORS[colorIndex] || DOT_COLORS[0])}
+                    />
+                    <span className="text-xs text-slate-700 dark:text-slate-300 font-medium truncate">
+                      {name}
+                    </span>
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500 ml-auto whitespace-nowrap">
+                      {isManual ? `${manualDayCount}d` : `${daysNeeded}d`}
+                    </span>
+                  </div>
               ))}
             </div>
 
