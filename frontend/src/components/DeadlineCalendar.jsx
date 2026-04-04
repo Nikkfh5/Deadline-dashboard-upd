@@ -73,7 +73,7 @@ const DeadlineCalendar = ({ deadlines, isPlanningMode, planningSubMode, manualPl
     return (
       <div
         className={cn(
-          'group/day relative flex flex-col items-center justify-center w-10 h-10 rounded-md transition-all duration-150',
+          'group/day relative flex flex-col items-center justify-center w-10 h-10 rounded-md transition-colors duration-150',
           overlapCount > 0 && 'ring-1 ring-inset ring-slate-200/50 dark:ring-slate-600/50',
           isDueDate && 'font-bold',
           isManualPainting && 'cursor-pointer hover:ring-2 hover:ring-blue-300 dark:hover:ring-blue-600',
@@ -205,8 +205,8 @@ const DeadlineCalendar = ({ deadlines, isPlanningMode, planningSubMode, manualPl
             head_cell:
               'text-slate-500 dark:text-slate-400 rounded-md w-10 font-medium text-[0.75rem] uppercase tracking-wider',
             row: 'flex w-full mt-1',
-            cell: 'relative p-0 text-center text-sm',
-            day: 'h-10 w-10 p-0 font-normal rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors',
+            cell: 'relative p-0 text-center text-sm overflow-visible',
+            day: 'h-10 w-10 p-0 font-normal rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors overflow-visible',
             day_selected: 'bg-slate-200 dark:bg-slate-600',
             day_today:
               'bg-slate-100 dark:bg-slate-700/50 text-slate-900 dark:text-slate-100 font-semibold ring-1 ring-slate-300 dark:ring-slate-600',
