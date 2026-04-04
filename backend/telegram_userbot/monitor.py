@@ -158,6 +158,19 @@ async def _handle_message(event):
         logger.debug(f"No sources found for channel {chat.title} (id={channel_id}, username={channel_username})")
         return
 
+    # Filter out users who disabled channel parsing
+    user_ids_all = list(set(s["user_id"] for s in sources))
+    users_with_parsing = await db.users.find(
+        {"telegram_id": {"$in": [int(uid) for uid in user_ids_all]},
+         "settings.channel_parsing_enabled": {"$ne": False}},
+    ).to_list(100)
+    active_user_ids = set(str(u["telegram_id"]) for u in users_with_parsing)
+    sources = [s for s in sources if s["user_id"] in active_user_ids]
+
+    if not sources:
+        logger.debug(f"All users disabled parsing for channel {chat.title}")
+        return
+
     logger.info(f"Processing message from {channel_username or str(channel_id)}: {text[:100]}...")
 
     # Get channel profile for better subject detection

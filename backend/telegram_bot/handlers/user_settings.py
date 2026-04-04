@@ -71,10 +71,12 @@ async def settings_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     settings = user.get("settings", {})
     reminders = settings.get("reminder_minutes", [1440, 60])
     notif = settings.get("notifications_enabled", True)
+    parsing = settings.get("channel_parsing_enabled", True)
 
     text = (
         "<b>Настройки</b>\n\n"
         f"Уведомления: {'включены' if notif else 'выключены'}\n"
+        f"Парсинг каналов: {'включён' if parsing else 'выключен'}\n"
         f"Напоминания: {_format_reminder_list(reminders)}\n"
     )
 
@@ -82,6 +84,10 @@ async def settings_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton(
             f"{'🔔 Выкл. уведомления' if notif else '🔕 Вкл. уведомления'}",
             callback_data=f"{SETTINGS_CB}notif_toggle",
+        )],
+        [InlineKeyboardButton(
+            f"{'📡 Выкл. парсинг каналов' if parsing else '📡 Вкл. парсинг каналов'}",
+            callback_data=f"{SETTINGS_CB}parsing_toggle",
         )],
         [InlineKeyboardButton(
             "⏰ Настроить напоминания",
@@ -114,6 +120,19 @@ async def settings_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         await query.edit_message_text(
             f"Уведомления {'включены 🔔' if new_val else 'выключены 🔕'}",
+        )
+        return
+
+    if action == "parsing_toggle":
+        new_val = not settings.get("channel_parsing_enabled", True)
+        await db.users.update_one(
+            {"_id": user["_id"]},
+            {"$set": {"settings.channel_parsing_enabled": new_val}},
+        )
+        await query.edit_message_text(
+            f"Парсинг каналов {'включён 📡' if new_val else 'выключен 🚫'}\n\n"
+            + ("Новые дедлайны из каналов будут автоматически добавляться." if new_val
+               else "Дедлайны из каналов больше не будут парситься."),
         )
         return
 
@@ -167,10 +186,12 @@ async def settings_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         settings = user.get("settings", {})
         reminders = settings.get("reminder_minutes", [1440, 60])
         notif = settings.get("notifications_enabled", True)
+        parsing = settings.get("channel_parsing_enabled", True)
 
         text = (
             "<b>Настройки</b>\n\n"
             f"Уведомления: {'включены' if notif else 'выключены'}\n"
+            f"Парсинг каналов: {'включён' if parsing else 'выключен'}\n"
             f"Напоминания: {_format_reminder_list(reminders)}\n"
         )
 
@@ -178,6 +199,10 @@ async def settings_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton(
                 f"{'🔔 Выкл. уведомления' if notif else '🔕 Вкл. уведомления'}",
                 callback_data=f"{SETTINGS_CB}notif_toggle",
+            )],
+            [InlineKeyboardButton(
+                f"{'📡 Выкл. парсинг каналов' if parsing else '📡 Вкл. парсинг каналов'}",
+                callback_data=f"{SETTINGS_CB}parsing_toggle",
             )],
             [InlineKeyboardButton(
                 "⏰ Настроить напоминания",
