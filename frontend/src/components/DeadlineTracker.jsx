@@ -365,6 +365,7 @@ const DeadlineTracker = () => {
           is_recurring: updatedDeadline.isRecurring,
           interval_days: updatedDeadline.intervalDays,
           last_started_at: updatedDeadline.lastStartedAt,
+          days_needed: updatedDeadline.daysNeeded,
         }).then(refreshStats);
       }
     } else {
@@ -391,6 +392,7 @@ const DeadlineTracker = () => {
           is_recurring: deadline.isRecurring,
           interval_days: deadline.intervalDays,
           last_started_at: deadline.lastStartedAt,
+          days_needed: deadline.daysNeeded,
         }).then((serverDeadline) => {
           if (serverDeadline) {
             const normalized = normalizeServerDeadline(serverDeadline);
@@ -428,6 +430,9 @@ const DeadlineTracker = () => {
     const parsed = parseInt(value);
     const daysNeeded = isNaN(parsed) || parsed < 1 ? null : parsed;
     setDeadlines(prev => prev.map(d => d.id === id ? { ...d, daysNeeded, updatedAt: new Date().toISOString() } : d));
+    if (hasToken()) {
+      updateDeadline(id, { days_needed: daysNeeded });
+    }
   };
 
   // Helper function to render individual deadline card
