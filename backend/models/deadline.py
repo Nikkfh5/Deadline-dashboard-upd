@@ -16,7 +16,7 @@ class DeadlineCreate(BaseModel):
     is_recurring: bool = False
     interval_days: Optional[int] = None
     last_started_at: Optional[datetime] = None
-    days_needed: Optional[int] = None
+    days_needed: Optional[int] = Field(default=None, ge=1)
     source: DeadlineSource = DeadlineSource()
 
 
@@ -27,7 +27,7 @@ class DeadlineUpdate(BaseModel):
     is_recurring: Optional[bool] = None
     interval_days: Optional[int] = None
     last_started_at: Optional[datetime] = None
-    days_needed: Optional[int] = None
+    days_needed: Optional[int] = Field(default=None, ge=1)
     is_postponed: Optional[bool] = None
     previous_due_date: Optional[datetime] = None
 

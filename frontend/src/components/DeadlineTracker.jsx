@@ -426,12 +426,16 @@ const DeadlineTracker = () => {
     }
   };
 
+  const daysNeededTimerRef = useRef({});
   const updateDaysNeeded = (id, value) => {
     const parsed = parseInt(value);
     const daysNeeded = isNaN(parsed) || parsed < 1 ? null : parsed;
     setDeadlines(prev => prev.map(d => d.id === id ? { ...d, daysNeeded, updatedAt: new Date().toISOString() } : d));
     if (hasToken()) {
-      updateDeadline(id, { days_needed: daysNeeded });
+      clearTimeout(daysNeededTimerRef.current[id]);
+      daysNeededTimerRef.current[id] = setTimeout(() => {
+        updateDeadline(id, { days_needed: daysNeeded });
+      }, 600);
     }
   };
 
