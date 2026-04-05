@@ -161,10 +161,10 @@ async def _handle_message(event):
     # Filter out users who disabled channel parsing
     user_ids_all = list(set(s["user_id"] for s in sources))
     users_with_parsing = await db.users.find(
-        {"telegram_id": {"$in": [int(uid) for uid in user_ids_all]},
+        {"_id": {"$in": [ObjectId(uid) for uid in user_ids_all]},
          "settings.channel_parsing_enabled": {"$ne": False}},
     ).to_list(100)
-    active_user_ids = set(str(u["telegram_id"]) for u in users_with_parsing)
+    active_user_ids = set(str(u["_id"]) for u in users_with_parsing)
     sources = [s for s in sources if s["user_id"] in active_user_ids]
 
     if not sources:
