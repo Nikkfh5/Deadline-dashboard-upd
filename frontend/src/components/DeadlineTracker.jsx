@@ -275,10 +275,18 @@ const DeadlineTracker = () => {
 
   const openAddModal = () => {
     setEditingDeadline(null);
+    // Default to today at 23:59 Moscow time
+    const now = new Date();
+    const moscowToday = new Intl.DateTimeFormat('sv-SE', {
+      timeZone: 'Europe/Moscow',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(now);
     setFormData({
       name: '',
       task: '',
-      dueDate: '',
+      dueDate: `${moscowToday}T23:59`,
       isRecurring: false,
       intervalDays: '7',
       customDays: '',
