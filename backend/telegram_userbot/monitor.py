@@ -173,25 +173,36 @@ async def _handle_message(event):
 
     logger.info(f"Processing message from {channel_username or str(channel_id)}: {text[:100]}...")
 
-    # Get channel profile for better subject detection
-    profile = await _get_channel_profile(chat)
+    # Check if this text was already analyzed — reuse cached Haiku result
+    from services.deadline_extractor import content_hash
+    c_hash = content_hash(text)
+    cached = await db.parsed_posts.find_one({"content_hash": c_hash})
 
-    result = await get_analyzer().analyze_post(
-        text,
-        channel_name=chat.title or channel_username or str(channel_id),
-        channel_context=profile["context"],
-        channel_about=profile["about"],
-        known_subjects=profile["known_subjects"],
-    )
+    if cached:
+        extracted = cached.get("extracted_deadlines", [])
+        if not extracted:
+            return
+        logger.info(f"Reusing cached Haiku result for {channel_username or str(channel_id)}: {len(extracted)} deadlines")
+    else:
+        # Get channel profile for better subject detection
+        profile = await _get_channel_profile(chat)
 
-    logger.info(f"Haiku result: has_deadline={result.get('has_deadline')}, deadlines={len(result.get('deadlines', []))}, analysis={result.get('analysis', '')[:150]}")
+        result = await get_analyzer().analyze_post(
+            text,
+            channel_name=chat.title or channel_username or str(channel_id),
+            channel_context=profile["context"],
+            channel_about=profile["about"],
+            known_subjects=profile["known_subjects"],
+        )
 
-    if not result.get("has_deadline"):
-        return
+        logger.info(f"Haiku result: has_deadline={result.get('has_deadline')}, deadlines={len(result.get('deadlines', []))}, analysis={result.get('analysis', '')[:150]}")
 
-    extracted = result.get("deadlines", [])
-    if not extracted:
-        return
+        if not result.get("has_deadline"):
+            return
+
+        extracted = result.get("deadlines", [])
+        if not extracted:
+            return
 
     user_ids = list(set(s["user_id"] for s in sources))
     source_id = str(sources[0]["_id"])
