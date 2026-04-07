@@ -13,6 +13,8 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_MSG_LIMIT = 50
 MAX_MSG_LIMIT = 200
+MAX_MESSAGE_AGE_DAYS = 30
+COOLDOWN_SECONDS = 3600  # 1 hour between snapshots per user
 
 
 async def snapshot_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -21,6 +23,23 @@ async def snapshot_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not user:
         return
 
+    user_id = str(user["_id"])
+    db = get_db()
+
+    # --- Cooldown check ---
+    last_snapshot = await db.snapshot_log.find_one(
+        {"user_id": user_id},
+        sort=[("ts", -1)],
+    )
+    if last_snapshot:
+        elapsed = (datetime.utcnow() - last_snapshot["ts"]).total_seconds()
+        if elapsed < COOLDOWN_SECONDS:
+            remaining = int((COOLDOWN_SECONDS - elapsed) / 60)
+            await update.message.reply_text(
+                f"Snapshot можно запускать раз в час. Подожди ещё ~{remaining} мин."
+            )
+            return
+
     # Parse optional message limit from args: /snapshot 100
     limit = DEFAULT_MSG_LIMIT
     if context.args:
@@ -28,9 +47,6 @@ async def snapshot_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             limit = min(int(context.args[0]), MAX_MSG_LIMIT)
         except (ValueError, IndexError):
             pass
-
-    user_id = str(user["_id"])
-    db = get_db()
 
     # Get user's active telegram channels
     sources = await db.sources.find({
@@ -50,6 +66,9 @@ async def snapshot_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Userbot не запущен, snapshot недоступен.")
         return
 
+    # Record snapshot start
+    await db.snapshot_log.insert_one({"user_id": user_id, "ts": datetime.utcnow()})
+
     status_msg = await update.message.reply_text(
         f"Сканирую историю {len(sources)} канал(ов), последние {limit} сообщений...\n"
         "Это может занять некоторое время."
@@ -57,7 +76,9 @@ async def snapshot_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     total_new = 0
     total_rescheduled = 0
+    total_api_calls = 0
     channel_results = []
+    cutoff_date = datetime.utcnow() - timedelta(days=MAX_MESSAGE_AGE_DAYS)
 
     for source in sources:
         channel_name = source.get("display_name", source["identifier"])
@@ -73,7 +94,6 @@ async def snapshot_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if not entity:
                 identifier = source["identifier"]
                 if identifier.startswith("invite:"):
-                    # Private channel — can't iterate by invite hash, skip if no channel_id
                     logger.warning(f"Cannot snapshot private channel without channel_id: {identifier}")
                     channel_results.append(f"  • {channel_name} — пропущен (приватный, нет ID)")
                     continue
@@ -89,9 +109,16 @@ async def snapshot_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             source_id = str(source["_id"])
             channel_new = 0
             channel_rescheduled = 0
-            skipped = 0
+            skipped_old = 0
+            skipped_parsed = 0
+            api_calls = 0
 
             for msg in messages:
+                # Skip messages older than MAX_MESSAGE_AGE_DAYS
+                if msg.date and msg.date.replace(tzinfo=None) < cutoff_date:
+                    skipped_old += 1
+                    continue
+
                 text = msg.text or msg.message or ""
                 if not text or len(text) < 10:
                     continue
@@ -103,10 +130,11 @@ async def snapshot_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     "content_hash": c_hash,
                 })
                 if existing:
-                    skipped += 1
+                    skipped_parsed += 1
                     continue
 
                 # Analyze with Haiku
+                api_calls += 1
                 result = await get_analyzer().analyze_post(
                     text,
                     channel_name=entity.title or channel_name,
@@ -123,7 +151,8 @@ async def snapshot_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     continue
 
                 # Filter out deadlines that already passed
-                now_utc = datetime.utcnow()
+                # Haiku returns dates in MSK, so compare with MSK now
+                now_msk = datetime.utcnow() + timedelta(hours=3)
                 valid = []
                 for d in extracted:
                     due_str = d.get("due_date")
@@ -131,7 +160,7 @@ async def snapshot_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         continue
                     try:
                         due = datetime.fromisoformat(due_str)
-                        if due > now_utc:
+                        if due > now_msk:
                             valid.append(d)
                     except (ValueError, TypeError):
                         valid.append(d)  # keep if can't parse — extractor will handle
@@ -151,6 +180,7 @@ async def snapshot_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             total_new += channel_new
             total_rescheduled += channel_rescheduled
+            total_api_calls += api_calls
 
             parts = []
             if channel_new:
@@ -161,14 +191,17 @@ async def snapshot_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parts.append("нет новых дедлайнов")
 
             channel_results.append(f"  • {channel_name} — {', '.join(parts)}")
-            logger.info(f"Snapshot {channel_name}: new={channel_new}, rescheduled={channel_rescheduled}, skipped={skipped}")
+            logger.info(
+                f"Snapshot {channel_name}: new={channel_new}, rescheduled={channel_rescheduled}, "
+                f"api_calls={api_calls}, skipped_old={skipped_old}, skipped_parsed={skipped_parsed}"
+            )
 
         except Exception as e:
             logger.error(f"Snapshot error for {channel_name}: {e}", exc_info=True)
             channel_results.append(f"  • {channel_name} — ошибка: {e}")
 
     # Build result message
-    lines = [f"Snapshot завершён!\n"]
+    lines = ["Snapshot завершён!\n"]
     if total_new:
         lines.append(f"Найдено новых дедлайнов: {total_new}")
     if total_rescheduled:
@@ -177,5 +210,6 @@ async def snapshot_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         lines.append("Новых дедлайнов не найдено.")
     lines.append(f"\nПо каналам:")
     lines.extend(channel_results)
+    lines.append(f"\nAPI вызовов: {total_api_calls}")
 
     await status_msg.edit_text("\n".join(lines))
