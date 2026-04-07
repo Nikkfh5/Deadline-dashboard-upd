@@ -60,6 +60,7 @@ const DeadlineTracker = () => {
   const [isPlanningMode, setIsPlanningMode] = useState(false);
   const [planningSubMode, setPlanningSubMode] = useState('auto');
   const [manualActiveDeadlineId, setManualActiveDeadlineId] = useState(null);
+  const recentlyDeletedRef = useRef(new Set());
   const { snapshots, saveSnapshot, deleteSnapshot, exportSnapshotAsText } = useSnapshots();
   const { manualPlan, toggleDay, setColor, clearDeadline, clearAll: clearAllManual, loadManualPlan } = useManualPlan();
   const handleDayClick = useCallback((dateKey) => {
@@ -137,7 +138,10 @@ const DeadlineTracker = () => {
   const doSync = async () => {
     const serverDeadlines = await fetchDeadlines();
     if (serverDeadlines && serverDeadlines.length > 0) {
-      const normalized = serverDeadlines.map(normalizeServerDeadline);
+      const deleted = recentlyDeletedRef.current;
+      const normalized = serverDeadlines
+        .map(normalizeServerDeadline)
+        .filter(d => !deleted.has(d.id));
       setDeadlines(prev => {
         const merged = mergeDeadlines(normalized, prev);
         if (merged.length === prev.length && merged.every((d, i) => d.id === prev[i]?.id)) return prev;
@@ -411,6 +415,8 @@ const DeadlineTracker = () => {
   };
 
   const handleDeleteDeadline = (id) => {
+    recentlyDeletedRef.current.add(id);
+    setTimeout(() => recentlyDeletedRef.current.delete(id), 30000);
     setDeadlines(prev => prev.filter(d => d.id !== id));
     clearDeadline(id);
     if (manualActiveDeadlineId === id) setManualActiveDeadlineId(null);
@@ -420,6 +426,8 @@ const DeadlineTracker = () => {
   };
 
   const handleCompleteDeadline = (id) => {
+    recentlyDeletedRef.current.add(id);
+    setTimeout(() => recentlyDeletedRef.current.delete(id), 30000);
     setDeadlines(prev => prev.filter(d => d.id !== id));
     if (hasToken()) {
       completeDeadlineApi(id).then(refreshStats);
