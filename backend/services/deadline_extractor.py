@@ -34,21 +34,22 @@ async def save_extracted_deadlines(
     db = get_db()
     c_hash = content_hash(raw_text)
 
-    existing = await db.parsed_posts.find_one({
-        "source_id": source_id,
-        "content_hash": c_hash,
-    })
-    if existing:
-        return 0, []
-
-    await db.parsed_posts.insert_one({
-        "source_id": source_id,
-        "content_hash": c_hash,
-        "raw_text": raw_text[:MAX_RAW_TEXT_STORE],
-        "has_deadline": len(extracted) > 0,
-        "extracted_deadlines": extracted,
-        "processed_at": datetime.utcnow(),
-    })
+    # Check if this text was already analyzed (by any source) — reuse cached result
+    cached = await db.parsed_posts.find_one({"content_hash": c_hash})
+    if cached:
+        # Reuse cached Haiku result instead of the new extraction
+        extracted = cached.get("extracted_deadlines", [])
+        if not extracted:
+            return 0, []
+    else:
+        await db.parsed_posts.insert_one({
+            "source_id": source_id,
+            "content_hash": c_hash,
+            "raw_text": raw_text[:MAX_RAW_TEXT_STORE],
+            "has_deadline": len(extracted) > 0,
+            "extracted_deadlines": extracted,
+            "processed_at": datetime.utcnow(),
+        })
 
     # Prepare all valid deadlines
     docs_to_insert = []
@@ -134,11 +135,9 @@ async def save_extracted_deadlines(
         matched = False
 
         for existing in candidates:
-            # Exact date match with same subject = definite duplicate
-            same_date = existing["due_date"] == doc["due_date"]
             ratio = SequenceMatcher(None, existing["task"], doc["task"]).ratio()
-            if same_date or ratio >= DEDUPE_SIMILARITY_THRESHOLD:
-                # Match found (by date or by fuzzy task)
+            if ratio >= DEDUPE_SIMILARITY_THRESHOLD:
+                # Fuzzy match found
                 existing_due = existing["due_date"]
                 new_due = doc["due_date"]
                 if existing_due != new_due:
@@ -167,9 +166,8 @@ async def save_extracted_deadlines(
         if not matched:
             for accepted in new_docs:
                 if accepted["user_id"] == doc["user_id"] and accepted["name"] == doc["name"]:
-                    same_date = accepted["due_date"] == doc["due_date"]
                     ratio = SequenceMatcher(None, accepted["task"], doc["task"]).ratio()
-                    if same_date or ratio >= DEDUPE_SIMILARITY_THRESHOLD:
+                    if ratio >= DEDUPE_SIMILARITY_THRESHOLD:
                         matched = True
                         break
 

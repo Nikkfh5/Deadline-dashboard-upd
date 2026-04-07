@@ -101,31 +101,34 @@ async def snapshot_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if not text or len(text) < 10:
                     continue
 
-                # Check if already parsed
+                # Check if already parsed (by any source — shared cache)
                 c_hash = content_hash(text)
-                existing = await db.parsed_posts.find_one({
-                    "source_id": source_id,
+                cached = await db.parsed_posts.find_one({
                     "content_hash": c_hash,
                 })
-                if existing:
-                    skipped_parsed += 1
-                    continue
 
-                # Analyze with Haiku
-                result = await get_analyzer().analyze_post(
-                    text,
-                    channel_name=entity.title or channel_name,
-                    channel_context=profile["context"],
-                    channel_about=profile["about"],
-                    known_subjects=profile.get("known_subjects", []),
-                )
+                if cached:
+                    # Reuse cached Haiku result — don't call API again
+                    extracted = cached.get("extracted_deadlines", [])
+                    if not extracted:
+                        skipped_parsed += 1
+                        continue
+                else:
+                    # Analyze with Haiku (first time seeing this text)
+                    result = await get_analyzer().analyze_post(
+                        text,
+                        channel_name=entity.title or channel_name,
+                        channel_context=profile["context"],
+                        channel_about=profile["about"],
+                        known_subjects=profile.get("known_subjects", []),
+                    )
 
-                if not result.get("has_deadline"):
-                    continue
+                    if not result.get("has_deadline"):
+                        continue
 
-                extracted = result.get("deadlines", [])
-                if not extracted:
-                    continue
+                    extracted = result.get("deadlines", [])
+                    if not extracted:
+                        continue
 
                 # Filter out deadlines that already passed
                 # Haiku returns dates in MSK, so compare with MSK now
