@@ -402,3 +402,29 @@ Channel monitoring pipeline confirmed working — QA deadline posted via Teletho
 All 5 remaining E2E tests passed. Recurring repeat fix confirmed in real browser — date persisted through sync cycle. Planning mode (auto+manual) and snapshot save/load fully functional. Complete flow properly increments stats.
 
 **Status:** DONE
+
+---
+
+## EXP-024 — 2026-04-07 12:00 UTC
+
+**Strategy:** Full system coverage — bot commands via Telethon, wiki, reminders, data isolation
+
+### EXP-024 Results — 2026-04-07 12:10 UTC
+
+- **Passed:** 18/18
+- **Failed:** 0/18
+
+**Bot commands (via Telethon → @deadline_fcs_bot):**
+- /start: PASS — /help: PASS — /my_deadlines: PASS — /dashboard: PASS
+- /settings: PASS — /list_channels: PASS — /list_wikis: PASS
+- /share: PASS (code 7FLAK7) — /join XXXXXX: PASS (rejected invalid)
+- /snapshot: PASS — /add conversation: PASS (full flow)
+- /add_wiki + /remove_wiki: PASS
+
+**System verification:**
+- Reminders: PASS (5 records in DB, scheduler active)
+- Channel monitoring: PASS (18 parsed_posts, last 30min ago)
+- Data isolation: PASS (6 users, 0 deadline overlap)
+- Share codes: PASS
+
+**Status:** DONE
