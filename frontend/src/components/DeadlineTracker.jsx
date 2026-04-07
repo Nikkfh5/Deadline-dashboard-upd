@@ -260,6 +260,13 @@ const DeadlineTracker = () => {
     };
 
     setDeadlines(prev => prev.map(d => d.id === deadline.id ? updatedDeadline : d));
+
+    if (hasToken()) {
+      updateDeadline(deadline.id, {
+        due_date: newDueDate.toISOString(),
+        last_started_at: now.toISOString(),
+      }).then(refreshStats);
+    }
   };
 
   // Filter and sort deadlines
