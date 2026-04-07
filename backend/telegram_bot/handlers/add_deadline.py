@@ -13,6 +13,7 @@ from telegram.ext import (
     filters,
 )
 
+from models.deadline import strip_html_tags
 from services.database import get_db
 from services.haiku_analyzer import get_analyzer
 from telegram_bot.helpers import format_time_left, format_due_date_msk
@@ -203,7 +204,7 @@ async def subject_received(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         )
         return NAME
 
-    context.user_data["add_deadline"]["name"] = text
+    context.user_data["add_deadline"]["name"] = strip_html_tags(text)[:500]
     await update.message.reply_text(
         f"{text}\n\nДобавь описание:",
         reply_markup=_cancel_keyboard(),
@@ -221,7 +222,7 @@ async def task_received(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         )
         return TASK
 
-    context.user_data["add_deadline"]["task"] = text
+    context.user_data["add_deadline"]["task"] = strip_html_tags(text)[:500]
     await update.message.reply_text(
         "Когда дедлайн? Напиши дату, например:\n"
         "  15.04.2026 23:59\n"

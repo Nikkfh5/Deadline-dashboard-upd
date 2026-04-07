@@ -5,6 +5,7 @@ from datetime import datetime
 from difflib import SequenceMatcher
 from typing import List, Tuple
 
+from models.deadline import strip_html_tags
 from services.database import get_db
 
 logger = logging.getLogger(__name__)
@@ -78,8 +79,8 @@ async def save_extracted_deadlines(
             docs_to_insert.append({
                 "id": str(uuid.uuid4()),
                 "user_id": user_id,
-                "name": subject,
-                "task": task_display,
+                "name": strip_html_tags(subject)[:500],
+                "task": strip_html_tags(task_display)[:500],
                 "due_date": due_date,
                 "created_at": now,
                 "updated_at": now,
