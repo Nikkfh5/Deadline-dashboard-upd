@@ -30,3 +30,15 @@ SQL-injection-like token → rejected. No data leakage.
 ### BUG-004 [MEDIUM] — 2026-04-07 11:08 UTC
 
 [huge_name] POST deadline with 10000 char name: Accepted 10000 char name — no length limit
+
+### BUG-005 [MEDIUM] — 2026-04-07 11:22 UTC
+
+[bot_get_me] Bot getMe returns valid info: getMe failed: HTTP Error 404: Not Found
+
+### BUG-006 [MEDIUM] — 2026-04-07 11:22 UTC
+
+[bot_commands] Bot has commands registered: getMyCommands failed: HTTP Error 404: Not Found
+
+### BUG-007 [MEDIUM] — 2026-04-07 11:36 UTC
+
+[channel_post_deadline] Post to @midvor → deadline appears: Post failed: HTTP Error 403: Forbidden
