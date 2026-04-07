@@ -134,9 +134,11 @@ async def save_extracted_deadlines(
         matched = False
 
         for existing in candidates:
+            # Exact date match with same subject = definite duplicate
+            same_date = existing["due_date"] == doc["due_date"]
             ratio = SequenceMatcher(None, existing["task"], doc["task"]).ratio()
-            if ratio >= DEDUPE_SIMILARITY_THRESHOLD:
-                # Fuzzy match found
+            if same_date or ratio >= DEDUPE_SIMILARITY_THRESHOLD:
+                # Match found (by date or by fuzzy task)
                 existing_due = existing["due_date"]
                 new_due = doc["due_date"]
                 if existing_due != new_due:
@@ -160,6 +162,16 @@ async def save_extracted_deadlines(
                 # else: same date, near-duplicate -> skip
                 matched = True
                 break
+
+        # Intra-batch dedup: check against docs already accepted in this batch
+        if not matched:
+            for accepted in new_docs:
+                if accepted["user_id"] == doc["user_id"] and accepted["name"] == doc["name"]:
+                    same_date = accepted["due_date"] == doc["due_date"]
+                    ratio = SequenceMatcher(None, accepted["task"], doc["task"]).ratio()
+                    if same_date or ratio >= DEDUPE_SIMILARITY_THRESHOLD:
+                        matched = True
+                        break
 
         if not matched:
             new_docs.append(doc)
