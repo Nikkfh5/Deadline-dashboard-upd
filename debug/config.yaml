@@ -1,0 +1,46 @@
+# Self-QA Loop Configuration
+# Project: Deadline Dashboard
+# Type: Web API (FastAPI + React + Telegram bot)
+
+project:
+  name: "Deadline-dashboard-upd"
+  root: "../"
+
+system:
+  # System runs on VPS — no local start/stop
+  base_url: "http://176.124.205.198:8001"
+  frontend_url: "http://176.124.205.198:3000"
+  health: "curl -sf http://176.124.205.198:8001/api/deadlines?token=test 2>&1 || echo UNHEALTHY"
+
+palettes:
+  deadlines_crud:
+    - "POST /api/deadlines — create deadline with valid data"
+    - "GET /api/deadlines — list user deadlines"
+    - "PUT /api/deadlines/{id} — update deadline"
+    - "DELETE /api/deadlines/{id} — delete deadline"
+  auth:
+    - "GET /api/deadlines without token — should fail"
+    - "GET /api/deadlines with invalid token — should fail"
+    - "GET /api/deadlines with valid token — should return list"
+  recurring:
+    - "POST recurring deadline — is_recurring=true, interval_days=7"
+    - "PUT recurring deadline — update due_date (repeat simulation)"
+    - "PUT recurring deadline — update last_started_at"
+  edge_cases:
+    - "POST /api/deadlines with empty name"
+    - "POST /api/deadlines with past due_date"
+    - "POST /api/deadlines with missing fields"
+    - "PUT /api/deadlines/nonexistent-uuid — should 404"
+    - "DELETE /api/deadlines/nonexistent-uuid — should 404"
+  validation:
+    - "POST /api/deadlines with days_needed=0 — should reject (ge=1)"
+    - "POST /api/deadlines with days_needed=-5 — should reject"
+    - "POST /api/deadlines with interval_days=0"
+    - "PUT /api/deadlines with due_date as garbage string"
+  security:
+    - "POST /api/deadlines with XSS in name field"
+    - "POST /api/deadlines with very long name (10000 chars)"
+    - "GET /api/deadlines with SQL-injection-like token"
+
+monitoring:
+  timeout: 10
