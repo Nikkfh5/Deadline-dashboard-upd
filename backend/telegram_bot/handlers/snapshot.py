@@ -14,9 +14,6 @@ logger = logging.getLogger(__name__)
 DEFAULT_MSG_LIMIT = 50
 MAX_MSG_LIMIT = 200
 MAX_MESSAGE_AGE_DAYS = 30
-COOLDOWN_SECONDS = 3600  # 1 hour between snapshots per user
-
-
 async def snapshot_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Scan message history of tracked channels and extract missed deadlines."""
     user = await get_current_user(update)
@@ -25,20 +22,6 @@ async def snapshot_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user_id = str(user["_id"])
     db = get_db()
-
-    # --- Cooldown check ---
-    last_snapshot = await db.snapshot_log.find_one(
-        {"user_id": user_id},
-        sort=[("ts", -1)],
-    )
-    if last_snapshot:
-        elapsed = (datetime.utcnow() - last_snapshot["ts"]).total_seconds()
-        if elapsed < COOLDOWN_SECONDS:
-            remaining = int((COOLDOWN_SECONDS - elapsed) / 60)
-            await update.message.reply_text(
-                f"Snapshot можно запускать раз в час. Подожди ещё ~{remaining} мин."
-            )
-            return
 
     # Parse optional message limit from args: /snapshot 100
     limit = DEFAULT_MSG_LIMIT
@@ -66,9 +49,6 @@ async def snapshot_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Userbot не запущен, snapshot недоступен.")
         return
 
-    # Record snapshot start
-    await db.snapshot_log.insert_one({"user_id": user_id, "ts": datetime.utcnow()})
-
     status_msg = await update.message.reply_text(
         f"Сканирую историю {len(sources)} канал(ов), последние {limit} сообщений...\n"
         "Это может занять некоторое время."
@@ -76,7 +56,6 @@ async def snapshot_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     total_new = 0
     total_rescheduled = 0
-    total_api_calls = 0
     channel_results = []
     cutoff_date = datetime.utcnow() - timedelta(days=MAX_MESSAGE_AGE_DAYS)
 
@@ -111,7 +90,6 @@ async def snapshot_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             channel_rescheduled = 0
             skipped_old = 0
             skipped_parsed = 0
-            api_calls = 0
 
             for msg in messages:
                 # Skip messages older than MAX_MESSAGE_AGE_DAYS
@@ -134,7 +112,6 @@ async def snapshot_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     continue
 
                 # Analyze with Haiku
-                api_calls += 1
                 result = await get_analyzer().analyze_post(
                     text,
                     channel_name=entity.title or channel_name,
@@ -180,8 +157,6 @@ async def snapshot_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             total_new += channel_new
             total_rescheduled += channel_rescheduled
-            total_api_calls += api_calls
-
             parts = []
             if channel_new:
                 parts.append(f"+{channel_new} новых")
@@ -193,7 +168,7 @@ async def snapshot_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             channel_results.append(f"  • {channel_name} — {', '.join(parts)}")
             logger.info(
                 f"Snapshot {channel_name}: new={channel_new}, rescheduled={channel_rescheduled}, "
-                f"api_calls={api_calls}, skipped_old={skipped_old}, skipped_parsed={skipped_parsed}"
+                f"skipped_old={skipped_old}, skipped_parsed={skipped_parsed}"
             )
 
         except Exception as e:
@@ -210,6 +185,4 @@ async def snapshot_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         lines.append("Новых дедлайнов не найдено.")
     lines.append(f"\nПо каналам:")
     lines.extend(channel_results)
-    lines.append(f"\nAPI вызовов: {total_api_calls}")
-
     await status_msg.edit_text("\n".join(lines))
