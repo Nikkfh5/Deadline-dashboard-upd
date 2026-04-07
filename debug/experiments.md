@@ -348,7 +348,7 @@ Re-test after deploying FIX-001/FIX-002. XSS sanitized (BUG-002 verified), 10000
 - **Passed:** 2/3
 - **Failed:** 1/3
 
-**Notes:** channel_post_deadline failed — bot is not admin in @midvor (403 Forbidden). Telethon userbot post worked but outgoing messages are ignored by the monitor (expected behavior). channel_source_exists and channel_dedup PASS.
+**Notes:** channel_post_deadline failed via Bot API (403 — bot not admin). BUT the Telethon userbot post DID create a deadline (id=7e552054, name=QA, source=telegram) — pipeline confirmed working with >25s delay. The boss.py test needs to use SSH+Telethon instead of Bot API for posting.
 
 **Status:** DONE
 
@@ -376,5 +376,29 @@ Re-test after deploying FIX-001/FIX-002. XSS sanitized (BUG-002 verified), 10000
 
 **Notes:**
 Channel monitoring pipeline confirmed working — QA deadline posted via Telethon appeared on desktop screenshot with delay >25s (caught by 10s polling). Delete race condition fix verified in real browser — 12 second wait, no reappearance.
+
+**Status:** DONE
+
+---
+
+## EXP-023 — 2026-04-07 11:50 UTC
+
+**Strategy:** Playwright MCP E2E — remaining tests (complete, recurring repeat, planning, snapshots)
+
+### EXP-023 Results — 2026-04-07 12:00 UTC
+
+- **Passed:** 5/5
+- **Failed:** 0/5
+
+**Tests:**
+- E2E-05 Complete: PASS (created "E2E Complete Test", clicked Done, card removed, completed_this_week 4→5)
+- E2E-06 Recurring repeat: PASS (created recurring with past date, clicked Repeat, moved to Temporary with +7d date, waited 12s — did NOT revert)
+- E2E-08 Planning auto: PASS (entered days_needed=3, calendar showed 3-day work period with red coloring)
+- E2E-09 Planning manual: PASS (selected "стажка", clicked 2 calendar days, tooltip showed "2d manual" + overlap)
+- E2E-10 Snapshot save/load: PASS (saved "E2E Snapshot Test", cleared manual plan, loaded snapshot — 2 manual days restored)
+- Console: 0 errors, 2 warnings (non-critical)
+
+**Notes:**
+All 5 remaining E2E tests passed. Recurring repeat fix confirmed in real browser — date persisted through sync cycle. Planning mode (auto+manual) and snapshot save/load fully functional. Complete flow properly increments stats.
 
 **Status:** DONE
