@@ -11,6 +11,7 @@ from telegram_bot.handlers.deadlines import my_deadlines_command, complete_deadl
 from telegram_bot.handlers.settings import share_command, join_command
 from telegram_bot.handlers.user_settings import settings_command, settings_callback, custom_reminder_input, SETTINGS_CB
 from telegram_bot.handlers.add_deadline import build_add_deadline_conversation
+from telegram_bot.handlers.snapshot import snapshot_command
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,7 @@ async def start_bot():
     _app.add_handler(CommandHandler("share", share_command))
     _app.add_handler(CommandHandler("join", join_command))
     _app.add_handler(CommandHandler("settings", settings_command))
+    _app.add_handler(CommandHandler("snapshot", snapshot_command))
     _app.add_handler(CallbackQueryHandler(settings_callback, pattern=f"^{SETTINGS_CB}"))
     _app.add_handler(CallbackQueryHandler(complete_deadline_button, pattern=f"^{COMPLETE_DEADLINE_CB}"))
     _app.add_handler(CallbackQueryHandler(delete_channel_button, pattern=f"^{DEL_CHANNEL_CB}"))
@@ -72,6 +74,7 @@ async def start_bot():
         ("dashboard", "Открыть дашборд"),
         ("settings", "Настройки"),
         ("share", "Поделиться источниками"),
+        ("snapshot", "Сканировать историю каналов"),
         ("help", "Помощь"),
     ])
 

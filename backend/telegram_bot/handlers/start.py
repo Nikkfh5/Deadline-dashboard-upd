@@ -143,6 +143,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/my_deadlines — дедлайны\n"
         "/dashboard — ссылка на дашборд\n"
         "/share — поделиться\n"
+        "/snapshot — сканировать историю каналов\n"
         "/join КОД — подключить источники",
         reply_markup=REPLY_KEYBOARD,
     )
