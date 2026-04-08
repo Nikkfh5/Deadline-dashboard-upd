@@ -124,17 +124,11 @@ const DeadlineCard = ({ deadline, timeLeft, progressColor, progressPercentage, i
         )}
       </div>
 
-      {/* NEW badge — Clash Royale style */}
+      {/* NEW badge */}
       {isNew && !isPlanningMode && (
-        <div
-          className="absolute -top-3 left-1/2 -translate-x-1/2 z-20 animate-new-badge-entrance"
-          onClick={(e) => {
-            e.stopPropagation();
-            onMarkSeen(deadline.id);
-          }}
-        >
-          <span className="new-badge-sparkle relative inline-flex items-center px-3 py-1 text-xs font-black tracking-wider text-white uppercase rounded-full shadow-lg cursor-pointer animate-new-badge-glow bg-gradient-to-r from-yellow-400 via-amber-500 to-yellow-400 border border-yellow-300 hover:scale-110 transition-transform duration-200">
-            NEW
+        <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 z-20 animate-new-badge-pulse">
+          <span className="inline-flex items-center px-2.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase rounded-full backdrop-blur-sm bg-slate-500/15 dark:bg-slate-400/15 text-slate-500 dark:text-slate-400 border border-slate-300/40 dark:border-slate-500/30 shadow-sm">
+            new
           </span>
         </div>
       )}
