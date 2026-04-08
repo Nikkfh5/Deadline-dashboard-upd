@@ -70,11 +70,37 @@ module.exports = {
   				to: {
   					height: '0'
   				}
+  			},
+  			'new-badge-glow': {
+  				'0%, 100%': {
+  					boxShadow: '0 0 5px rgba(255, 215, 0, 0.5), 0 0 10px rgba(255, 165, 0, 0.3)'
+  				},
+  				'50%': {
+  					boxShadow: '0 0 15px rgba(255, 215, 0, 0.8), 0 0 30px rgba(255, 165, 0, 0.5), 0 0 45px rgba(255, 215, 0, 0.2)'
+  				}
+  			},
+  			'new-badge-entrance': {
+  				'0%': {
+  					transform: 'translateX(-50%) scale(0) rotate(-15deg)',
+  					opacity: '0'
+  				},
+  				'60%': {
+  					transform: 'translateX(-50%) scale(1.3) rotate(3deg)',
+  					opacity: '1'
+  				},
+  				'80%': {
+  					transform: 'translateX(-50%) scale(0.95) rotate(-1deg)'
+  				},
+  				'100%': {
+  					transform: 'translateX(-50%) scale(1) rotate(0deg)'
+  				}
   			}
   		},
   		animation: {
   			'accordion-down': 'accordion-down 0.2s ease-out',
-  			'accordion-up': 'accordion-up 0.2s ease-out'
+  			'accordion-up': 'accordion-up 0.2s ease-out',
+  			'new-badge-glow': 'new-badge-glow 1.5s ease-in-out infinite',
+  			'new-badge-entrance': 'new-badge-entrance 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards'
   		}
   	}
   },

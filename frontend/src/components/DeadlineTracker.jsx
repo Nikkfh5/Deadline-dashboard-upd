@@ -13,6 +13,7 @@ import SnapshotManager from './SnapshotManager';
 import ManualPlanningToolbar from './ManualPlanningToolbar';
 import { useSnapshots } from '../hooks/useSnapshots';
 import { useManualPlan } from '../hooks/useManualPlan';
+import { useSeenDeadlines } from '../hooks/useSeenDeadlines';
 
 // Normalize snake_case server response to camelCase frontend format
 const normalizeServerDeadline = (d) => ({
@@ -63,6 +64,7 @@ const DeadlineTracker = () => {
   const recentlyDeletedRef = useRef(new Set());
   const { snapshots, saveSnapshot, deleteSnapshot, exportSnapshotAsText } = useSnapshots();
   const { manualPlan, toggleDay, setColor, clearDeadline, clearAll: clearAllManual, loadManualPlan } = useManualPlan();
+  const { isNew, markSeen, initializeWithExisting } = useSeenDeadlines();
   const handleDayClick = useCallback((dateKey) => {
     if (manualActiveDeadlineId) {
       toggleDay(manualActiveDeadlineId, dateKey);
@@ -110,6 +112,7 @@ const DeadlineTracker = () => {
         localDeadlines = mockDeadlines.map(migrateDeadline);
       }
       setDeadlines(localDeadlines);
+      initializeWithExisting(localDeadlines.map(d => d.id));
 
       // If we have a backend token, fetch and merge server deadlines
       if (hasToken()) {
@@ -118,6 +121,7 @@ const DeadlineTracker = () => {
           const normalized = serverDeadlines.map(normalizeServerDeadline);
           const merged = mergeDeadlines(normalized, localDeadlines);
           setDeadlines(merged);
+          initializeWithExisting(merged.map(d => d.id));
           localStorage.setItem('deadlines', JSON.stringify(merged));
         }
       }
@@ -307,6 +311,7 @@ const DeadlineTracker = () => {
   };
 
   const openEditModal = (deadline) => {
+    markSeen(deadline.id);
     setEditingDeadline(deadline);
     setFormData({
       name: deadline.name,
@@ -394,6 +399,7 @@ const DeadlineTracker = () => {
         daysNeeded: formData.daysNeeded ? parseInt(formData.daysNeeded) : null
       };
       setDeadlines(prev => [...prev, deadline]);
+      markSeen(deadline.id);
       // Sync create to backend — replace local ID with server ID
       if (hasToken()) {
         createDeadline({
@@ -407,6 +413,7 @@ const DeadlineTracker = () => {
         }).then((serverDeadline) => {
           if (serverDeadline) {
             const normalized = normalizeServerDeadline(serverDeadline);
+            markSeen(normalized.id);
             setDeadlines(prev => prev.map(d =>
               d.id === deadline.id ? normalized : d
             ));
@@ -475,7 +482,10 @@ const DeadlineTracker = () => {
         isPlanningMode={isPlanningMode}
         onUpdateDaysNeeded={updateDaysNeeded}
         planningSubMode={planningSubMode}
+        isNew={isNew(deadline.id)}
+        onMarkSeen={markSeen}
         onSelectForManual={(id) => {
+          markSeen(id);
           setManualActiveDeadlineId(id === manualActiveDeadlineId ? null : id);
           if (!manualPlan[id]) {
             setColor(id, 0);

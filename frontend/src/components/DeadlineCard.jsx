@@ -15,7 +15,7 @@ const truncateText = (text, maxLength = 25) => {
   return text.substring(0, maxLength) + '...';
 };
 
-const DeadlineCard = ({ deadline, timeLeft, progressColor, progressPercentage, isPulsing, onEdit, onDelete, onComplete, onRepeat, isRegularSection, isPlanningMode, onUpdateDaysNeeded, planningSubMode, onSelectForManual, isManualSelected, manualColorIndex }) => {
+const DeadlineCard = ({ deadline, timeLeft, progressColor, progressPercentage, isPulsing, onEdit, onDelete, onComplete, onRepeat, isRegularSection, isPlanningMode, onUpdateDaysNeeded, planningSubMode, onSelectForManual, isManualSelected, manualColorIndex, isNew, onMarkSeen }) => {
   const showRepeatButton = deadline.isRecurring && timeLeft.isOverdue;
   const isManualMode = isPlanningMode && planningSubMode === 'manual';
 
@@ -123,6 +123,21 @@ const DeadlineCard = ({ deadline, timeLeft, progressColor, progressPercentage, i
           </Badge>
         )}
       </div>
+
+      {/* NEW badge — Clash Royale style */}
+      {isNew && !isPlanningMode && (
+        <div
+          className="absolute -top-3 left-1/2 -translate-x-1/2 z-20 animate-new-badge-entrance"
+          onClick={(e) => {
+            e.stopPropagation();
+            onMarkSeen(deadline.id);
+          }}
+        >
+          <span className="new-badge-sparkle relative inline-flex items-center px-3 py-1 text-xs font-black tracking-wider text-white uppercase rounded-full shadow-lg cursor-pointer animate-new-badge-glow bg-gradient-to-r from-yellow-400 via-amber-500 to-yellow-400 border border-yellow-300 hover:scale-110 transition-transform duration-200">
+            NEW
+          </span>
+        </div>
+      )}
 
       <div className="flex flex-col items-center space-y-4 mt-4">
         {/* Circular Progress */}
