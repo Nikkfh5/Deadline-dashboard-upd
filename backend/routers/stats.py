@@ -24,7 +24,7 @@ async def get_stats(token: str = Query(...)):
 
     # Single aggregation pipeline using $facet
     pipeline = [
-        {"$match": {"user_id": user_id}},
+        {"$match": {"user_id": user_id, "is_recurring": {"$ne": True}}},
         {"$facet": {
             # Counts
             "counts": [

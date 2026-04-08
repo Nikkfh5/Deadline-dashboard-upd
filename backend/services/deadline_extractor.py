@@ -120,22 +120,11 @@ async def save_extracted_deadlines(
         {"user_id": 1, "name": 1, "task": 1, "due_date": 1, "_id": 1},
     ).to_list(1000)
 
-    # Fetch previously deleted deadlines to avoid re-importing them
-    deleted_deadlines = await db.deleted_deadlines.find(
-        {"$or": unique_dedup_keys},
-        {"user_id": 1, "name": 1, "task": 1},
-    ).to_list(1000)
-
     # Group existing deadlines by (user_id, name) for fast lookup
     from collections import defaultdict
     existing_by_user_name = defaultdict(list)
     for ed in existing_deadlines:
         existing_by_user_name[(ed["user_id"], ed["name"])].append(ed)
-
-    # Group deleted deadlines by (user_id, name)
-    deleted_by_user_name = defaultdict(list)
-    for dd in deleted_deadlines:
-        deleted_by_user_name[(dd["user_id"], dd["name"])].append(dd)
 
     new_docs = []
     rescheduled = []
@@ -144,16 +133,6 @@ async def save_extracted_deadlines(
     for doc in docs_to_insert:
         candidates = existing_by_user_name.get((doc["user_id"], doc["name"]), [])
         matched = False
-
-        # Check if user previously deleted a matching deadline
-        deleted_candidates = deleted_by_user_name.get((doc["user_id"], doc["name"]), [])
-        for deleted in deleted_candidates:
-            ratio = SequenceMatcher(None, deleted.get("task", ""), doc["task"]).ratio()
-            if ratio >= DEDUPE_SIMILARITY_THRESHOLD:
-                matched = True
-                break
-        if matched:
-            continue
 
         for existing in candidates:
             ratio = SequenceMatcher(None, existing["task"], doc["task"]).ratio()

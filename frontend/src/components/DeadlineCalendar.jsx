@@ -15,10 +15,16 @@ import {
 import { isSameDay, startOfDay, format } from 'date-fns';
 
 const DeadlineCalendar = ({ deadlines, isPlanningMode, planningSubMode, manualPlan, onDayClick, manualActiveDeadlineId }) => {
-  const autoWorkPeriods = useMemo(() => computeWorkPeriods(deadlines, manualPlan), [deadlines, manualPlan]);
+  // Exclude temporary (recurring) deadlines from calendar
+  const visibleDeadlines = useMemo(
+    () => deadlines.filter(d => !d.isRecurring),
+    [deadlines]
+  );
+
+  const autoWorkPeriods = useMemo(() => computeWorkPeriods(visibleDeadlines, manualPlan), [visibleDeadlines, manualPlan]);
   const manualWorkPeriods = useMemo(
-    () => computeManualWorkPeriods(deadlines, manualPlan || {}),
-    [deadlines, manualPlan]
+    () => computeManualWorkPeriods(visibleDeadlines, manualPlan || {}),
+    [visibleDeadlines, manualPlan]
   );
   const workPeriods = useMemo(
     () => mergeWorkPeriods(autoWorkPeriods, manualWorkPeriods),
@@ -42,20 +48,20 @@ const DeadlineCalendar = ({ deadlines, isPlanningMode, planningSubMode, manualPl
   const isManualEntry = (id) => manualIdSet.has(id);
 
   const dueDates = useMemo(
-    () => deadlines.map((d) => startOfDay(new Date(d.dueDate))),
-    [deadlines]
+    () => visibleDeadlines.map((d) => startOfDay(new Date(d.dueDate))),
+    [visibleDeadlines]
   );
 
   // Deadlines whose due date falls on each day (including those without daysNeeded)
   const dueDeadlinesByDay = useMemo(() => {
     const map = new Map();
-    deadlines.forEach((d) => {
+    visibleDeadlines.forEach((d) => {
       const key = format(startOfDay(new Date(d.dueDate)), 'yyyy-MM-dd');
       if (!map.has(key)) map.set(key, []);
       map.get(key).push(d);
     });
     return map;
-  }, [deadlines]);
+  }, [visibleDeadlines]);
 
   // Custom day renderer — useCallback prevents DayPicker from recreating DOM on parent re-render
   const renderDay = useCallback((date) => {
