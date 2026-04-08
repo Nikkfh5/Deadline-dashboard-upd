@@ -99,6 +99,20 @@ async def delete_deadline(
 
     await db.deadlines.delete_one({"id": deadline_id, "user_id": user_id})
 
+    # Track deletion so auto-import won't re-create this deadline
+    source = deadline.get("source", {})
+    if source.get("type") in ("telegram", "wiki"):
+        await db.deleted_deadlines.update_one(
+            {"user_id": user_id, "name": deadline["name"]},
+            {"$set": {
+                "user_id": user_id,
+                "name": deadline["name"],
+                "task": deadline.get("task", ""),
+                "deleted_at": datetime.utcnow(),
+            }},
+            upsert=True,
+        )
+
     if complete:
         await db.completions.insert_one({
             "user_id": user_id,

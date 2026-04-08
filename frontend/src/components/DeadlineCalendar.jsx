@@ -46,12 +46,24 @@ const DeadlineCalendar = ({ deadlines, isPlanningMode, planningSubMode, manualPl
     [deadlines]
   );
 
+  // Deadlines whose due date falls on each day (including those without daysNeeded)
+  const dueDeadlinesByDay = useMemo(() => {
+    const map = new Map();
+    deadlines.forEach((d) => {
+      const key = format(startOfDay(new Date(d.dueDate)), 'yyyy-MM-dd');
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(d);
+    });
+    return map;
+  }, [deadlines]);
+
   // Custom day renderer — useCallback prevents DayPicker from recreating DOM on parent re-render
   const renderDay = useCallback((date) => {
     const dayKey = format(date, 'yyyy-MM-dd');
     const overlappingIds = overlapMap.get(dayKey) || [];
     const deadlinesForDay = getDeadlinesForDay(date, workPeriods);
     const isDueDate = dueDates.some((d) => isSameDay(d, date));
+    const dueDeadlines = dueDeadlinesByDay.get(dayKey) || [];
     const overlapCount = overlappingIds.length;
 
     // Background style based on work periods and overlaps
@@ -126,6 +138,11 @@ const DeadlineCalendar = ({ deadlines, isPlanningMode, planningSubMode, manualPl
                 {isDueDate && (
                   <div className="text-xs font-semibold text-red-600 dark:text-red-400">
                     Deadline day
+                    {dueDeadlines.length > 0 && (
+                      <span className="font-normal text-slate-500 dark:text-slate-400 ml-1">
+                        ({dueDeadlines.map(d => d.name).join(', ')})
+                      </span>
+                    )}
                   </div>
                 )}
                 {deadlinesForDay.map(({ deadlineId, colorIndex, deadline }) => {
@@ -156,7 +173,7 @@ const DeadlineCalendar = ({ deadlines, isPlanningMode, planningSubMode, manualPl
         )}
       </div>
     );
-  }, [overlapMap, workPeriods, dueDates, planningSubMode, manualActiveDeadlineId, manualPlan, onDayClick, isManualEntry]);
+  }, [overlapMap, workPeriods, dueDates, dueDeadlinesByDay, planningSubMode, manualActiveDeadlineId, manualPlan, onDayClick, isManualEntry]);
 
   const dayPickerComponents = useMemo(() => ({
     IconLeft: (props) => <ChevronLeft className="h-4 w-4" {...props} />,
