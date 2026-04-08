@@ -22,6 +22,8 @@ const DeadlineCard = ({ deadline, timeLeft, progressColor, progressPercentage, i
   const handleClick = () => {
     if (isManualMode) {
       onSelectForManual?.(deadline.id);
+    } else if (isNew) {
+      onMarkSeen(deadline.id);
     } else {
       onEdit(deadline);
     }
