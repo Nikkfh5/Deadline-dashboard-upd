@@ -7,14 +7,23 @@ const api = axios.create({
   timeout: 10000,
 });
 
+// Session-scoped token: pinned per tab so multiple users
+// in the same browser don't overwrite each other via localStorage.
+let sessionToken = null;
+
 function getToken() {
+  if (sessionToken) return sessionToken;
+
   const params = new URLSearchParams(window.location.search);
   const urlToken = params.get('token');
   if (urlToken) {
+    sessionToken = urlToken;
     localStorage.setItem('dashboard_token', urlToken);
-    return urlToken;
+    return sessionToken;
   }
-  return localStorage.getItem('dashboard_token');
+
+  sessionToken = localStorage.getItem('dashboard_token');
+  return sessionToken;
 }
 
 export async function fetchDeadlines() {
@@ -26,6 +35,7 @@ export async function fetchDeadlines() {
     return response.data;
   } catch (error) {
     if (error.response?.status === 401) {
+      sessionToken = null;
       localStorage.removeItem('dashboard_token');
     }
     console.error('Failed to fetch deadlines:', error);
