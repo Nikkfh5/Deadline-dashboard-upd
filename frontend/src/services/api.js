@@ -17,6 +17,12 @@ function getToken() {
   const params = new URLSearchParams(window.location.search);
   const urlToken = params.get('token');
   if (urlToken) {
+    // If token changed, clear cached deadlines so stale data from
+    // another account doesn't leak into this session.
+    const prev = localStorage.getItem('dashboard_token');
+    if (prev && prev !== urlToken) {
+      localStorage.removeItem('deadlines');
+    }
     sessionToken = urlToken;
     localStorage.setItem('dashboard_token', urlToken);
     return sessionToken;

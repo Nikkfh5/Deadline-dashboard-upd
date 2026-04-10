@@ -117,7 +117,7 @@ const DeadlineTracker = () => {
       // If we have a backend token, fetch and merge server deadlines
       if (hasToken()) {
         const serverDeadlines = await fetchDeadlines();
-        if (serverDeadlines && serverDeadlines.length > 0) {
+        if (serverDeadlines !== null) {
           const normalized = serverDeadlines.map(normalizeServerDeadline);
           const merged = mergeDeadlines(normalized, localDeadlines);
           setDeadlines(merged);
@@ -141,7 +141,7 @@ const DeadlineTracker = () => {
   const syncIntervalRef = useRef(null);
   const doSync = async () => {
     const serverDeadlines = await fetchDeadlines();
-    if (serverDeadlines && serverDeadlines.length > 0) {
+    if (serverDeadlines !== null) {
       const deleted = recentlyDeletedRef.current;
       const normalized = serverDeadlines
         .map(normalizeServerDeadline)
