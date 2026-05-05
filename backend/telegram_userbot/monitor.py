@@ -141,8 +141,12 @@ async def _handle_message(event):
     db = get_db()
 
     # Build all possible ID variants to match against stored channel_id.
-    # Stored values may be positive Int64 (e.g. 3664820973) or signed 32-bit negative (e.g. -630146323).
-    id_variants = list({channel_id, -channel_id, abs(channel_id)})
+    # Old Telegram channels use 32-bit IDs; Telethon may return them as signed
+    # (-630146323) while the DB stores the unsigned 32-bit form zero-padded to
+    # 64 bits (3664820973 = -630146323 & 0xFFFFFFFF). Include both directions.
+    unsigned_32 = channel_id & 0xFFFFFFFF
+    signed_32 = unsigned_32 - 0x100000000 if unsigned_32 > 0x7FFFFFFF else unsigned_32
+    id_variants = list({channel_id, -channel_id, abs(channel_id), unsigned_32, signed_32})
 
     # Match by @username, string channel_id, or channel_id field (for private channels)
     match_values = [v for v in [channel_username, str(channel_id)] if v]
