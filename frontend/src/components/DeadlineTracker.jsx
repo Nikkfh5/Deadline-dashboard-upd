@@ -520,8 +520,11 @@ const DeadlineTracker = () => {
         <div className="max-w-7xl mx-auto">
           {/* Header */}
           <div className="flex justify-between items-center mb-12">
-            {/* Delete All — ghost by default, confirms inline */}
-            <div className="flex-1 flex items-center">
+            <div className="flex-1" />
+
+            <h1 className="text-4xl font-bold text-slate-800 dark:text-slate-100 tracking-wide">DEADLINES</h1>
+
+            <div className="flex-1 flex justify-end items-center gap-1">
               {!isDeleteAllConfirming ? (
                 <button
                   onClick={() => deadlines.length > 0 && setIsDeleteAllConfirming(true)}
@@ -559,11 +562,6 @@ const DeadlineTracker = () => {
                   </button>
                 </div>
               )}
-            </div>
-
-            <h1 className="text-4xl font-bold text-slate-800 dark:text-slate-100 tracking-wide">DEADLINES</h1>
-
-            <div className="flex-1 flex justify-end">
               <Button
                 variant="ghost"
                 size="icon"
