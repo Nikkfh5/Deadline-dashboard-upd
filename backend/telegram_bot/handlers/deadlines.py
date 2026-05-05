@@ -12,6 +12,8 @@ logger = logging.getLogger(__name__)
 
 SOURCE_ICONS = {"manual": "M", "telegram": "T", "wiki": "W"}
 COMPLETE_DEADLINE_CB = "done_dl:"
+DELETE_ALL_CONFIRM_CB = "del_all_confirm"
+DELETE_ALL_CANCEL_CB = "del_all_cancel"
 
 
 def _channel_link(identifier: str) -> str | None:
@@ -101,6 +103,47 @@ async def my_deadlines_command(update: Update, context: ContextTypes.DEFAULT_TYP
     keyboard = InlineKeyboardMarkup(buttons) if buttons else None
     msg = update.message or update.callback_query.message
     await msg.reply_text("\n".join(lines), reply_markup=keyboard, disable_web_page_preview=True)
+
+
+async def delete_all_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = await get_current_user(update)
+    if not user:
+        return
+
+    db = get_db()
+    count = await db.deadlines.count_documents({"user_id": str(user["_id"])})
+
+    if count == 0:
+        await update.message.reply_text("Нет дедлайнов для удаления.")
+        return
+
+    keyboard = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("✗ Отмена", callback_data=DELETE_ALL_CANCEL_CB),
+            InlineKeyboardButton(f"🗑 Удалить все ({count})", callback_data=DELETE_ALL_CONFIRM_CB),
+        ]
+    ])
+    await update.message.reply_text(
+        f"⚠️ Удалить все {count} дедлайн(ов)? Это действие нельзя отменить.",
+        reply_markup=keyboard,
+    )
+
+
+async def delete_all_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    if query.data == DELETE_ALL_CANCEL_CB:
+        await query.edit_message_text("Удаление отменено.")
+        return
+
+    user = await get_current_user(update)
+    if not user:
+        return
+
+    db = get_db()
+    result = await db.deadlines.delete_many({"user_id": str(user["_id"])})
+    await query.edit_message_text(f"✓ Удалено {result.deleted_count} дедлайн(ов).")
 
 
 async def complete_deadline_button(update: Update, context: ContextTypes.DEFAULT_TYPE):

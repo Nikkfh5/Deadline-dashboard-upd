@@ -56,36 +56,27 @@ module.exports = {
   		},
   		keyframes: {
   			'accordion-down': {
-  				from: {
-  					height: '0'
-  				},
-  				to: {
-  					height: 'var(--radix-accordion-content-height)'
-  				}
+  				from: { height: '0' },
+  				to: { height: 'var(--radix-accordion-content-height)' }
   			},
   			'accordion-up': {
-  				from: {
-  					height: 'var(--radix-accordion-content-height)'
-  				},
-  				to: {
-  					height: '0'
-  				}
+  				from: { height: 'var(--radix-accordion-content-height)' },
+  				to: { height: '0' }
   			},
   			'new-badge-pulse': {
-  				'0%, 100%': {
-  					opacity: '0.75',
-  					transform: 'translateX(-50%) scale(1)'
-  				},
-  				'50%': {
-  					opacity: '1',
-  					transform: 'translateX(-50%) scale(1.06)'
-  				}
+  				'0%, 100%': { opacity: '0.75', transform: 'translateX(-50%) scale(1)' },
+  				'50%': { opacity: '1', transform: 'translateX(-50%) scale(1.06)' }
+  			},
+  			'confirm-appear': {
+  				from: { opacity: '0', transform: 'scale(0.92) translateX(-4px)' },
+  				to: { opacity: '1', transform: 'scale(1) translateX(0)' }
   			}
   		},
   		animation: {
   			'accordion-down': 'accordion-down 0.2s ease-out',
   			'accordion-up': 'accordion-up 0.2s ease-out',
-  			'new-badge-pulse': 'new-badge-pulse 2.5s ease-in-out infinite'
+  			'new-badge-pulse': 'new-badge-pulse 2.5s ease-in-out infinite',
+  			'confirm-appear': 'confirm-appear 0.15s ease-out'
   		}
   	}
   },

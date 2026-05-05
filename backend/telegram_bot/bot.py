@@ -7,7 +7,7 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Mess
 from telegram_bot.handlers.start import start_command, help_command, dashboard_command, reply_keyboard_handler, REPLY_KEYBOARD
 from telegram_bot.handlers.channels import remove_channel_command, list_channels_command, build_add_channel_conversation, delete_channel_button, DEL_CHANNEL_CB
 from telegram_bot.handlers.wiki import remove_wiki_command, list_wikis_command, build_add_wiki_conversation, delete_wiki_button, DEL_WIKI_CB
-from telegram_bot.handlers.deadlines import my_deadlines_command, complete_deadline_button, COMPLETE_DEADLINE_CB
+from telegram_bot.handlers.deadlines import my_deadlines_command, complete_deadline_button, COMPLETE_DEADLINE_CB, delete_all_command, delete_all_callback, DELETE_ALL_CONFIRM_CB, DELETE_ALL_CANCEL_CB
 from telegram_bot.handlers.settings import share_command, join_command
 from telegram_bot.handlers.user_settings import settings_command, settings_callback, custom_reminder_input, SETTINGS_CB
 from telegram_bot.handlers.add_deadline import build_add_deadline_conversation
@@ -38,12 +38,14 @@ async def start_bot():
     _app.add_handler(CommandHandler("remove_wiki", remove_wiki_command))
     _app.add_handler(CommandHandler("list_wikis", list_wikis_command))
     _app.add_handler(CommandHandler("my_deadlines", my_deadlines_command))
+    _app.add_handler(CommandHandler("deleteall", delete_all_command))
     _app.add_handler(CommandHandler("share", share_command))
     _app.add_handler(CommandHandler("join", join_command))
     _app.add_handler(CommandHandler("settings", settings_command))
     _app.add_handler(CommandHandler("snapshot", snapshot_command))
     _app.add_handler(CallbackQueryHandler(settings_callback, pattern=f"^{SETTINGS_CB}"))
     _app.add_handler(CallbackQueryHandler(complete_deadline_button, pattern=f"^{COMPLETE_DEADLINE_CB}"))
+    _app.add_handler(CallbackQueryHandler(delete_all_callback, pattern=f"^({DELETE_ALL_CONFIRM_CB}|{DELETE_ALL_CANCEL_CB})$"))
     _app.add_handler(CallbackQueryHandler(delete_channel_button, pattern=f"^{DEL_CHANNEL_CB}"))
     _app.add_handler(CallbackQueryHandler(delete_wiki_button, pattern=f"^{DEL_WIKI_CB}"))
 
@@ -67,6 +69,7 @@ async def start_bot():
     await _app.bot.set_my_commands([
         ("add", "Добавить дедлайн"),
         ("my_deadlines", "Мои дедлайны"),
+        ("deleteall", "Удалить все дедлайны"),
         ("add_channel", "Добавить TG канал"),
         ("add_wiki", "Добавить wiki"),
         ("remove_channel", "Удалить канал"),

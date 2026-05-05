@@ -83,6 +83,14 @@ async def update_deadline(deadline_id: str, data: DeadlineUpdate, token: str = Q
     return _deadline_from_doc(result)
 
 
+@router.delete("")
+async def delete_all_deadlines(token: str = Query(...)):
+    user = await get_user_by_token(token)
+    db = get_db()
+    result = await db.deadlines.delete_many({"user_id": str(user["_id"])})
+    return {"deleted": result.deleted_count}
+
+
 @router.delete("/{deadline_id}")
 async def delete_deadline(
     deadline_id: str,

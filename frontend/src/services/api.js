@@ -101,6 +101,19 @@ export async function completeDeadlineApi(deadlineId) {
   }
 }
 
+export async function deleteAllDeadlinesApi() {
+  const token = getToken();
+  if (!token) return false;
+
+  try {
+    await api.delete('/deadlines', { params: { token } });
+    return true;
+  } catch (error) {
+    console.error('Failed to delete all deadlines:', error);
+    return false;
+  }
+}
+
 export async function fetchStats() {
   const token = getToken();
   if (!token) return null;
