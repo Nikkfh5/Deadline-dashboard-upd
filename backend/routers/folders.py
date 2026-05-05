@@ -10,8 +10,8 @@ from services.auth import get_user_by_token
 router = APIRouter(prefix="/api/folders", tags=["folders"])
 
 DEFAULT_FOLDERS = [
-    {"name": "Дедлайны", "type": "deadlines", "is_default": True},
-    {"name": "Идеи", "type": "ideas", "is_default": False},
+    {"name": "Deadlines", "type": "deadlines", "is_default": True},
+    {"name": "Ideas", "type": "ideas", "is_default": False},
 ]
 
 

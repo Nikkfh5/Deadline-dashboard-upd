@@ -133,8 +133,8 @@ function NewFolderForm({ onSubmit, onCancel }) {
         onChange={e => setType(e.target.value)}
         className="text-xs bg-transparent text-slate-500 dark:text-slate-400 border-none outline-none cursor-pointer"
       >
-        <option value="deadlines">Дедлайны</option>
-        <option value="ideas">Идеи</option>
+        <option value="deadlines">Deadlines</option>
+        <option value="ideas">Ideas</option>
       </select>
       <input
         ref={inputRef}

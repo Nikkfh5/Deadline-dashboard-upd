@@ -81,6 +81,7 @@ const DeadlineTracker = ({ foldersApi }) => {
   const refreshStats = () => setStatsKey(k => k + 1);
   const [isDeleteAllConfirming, setIsDeleteAllConfirming] = useState(false);
   const { viewMode, setViewMode, getPositions, savePosition, resetPositions } = useViewMode(folderId);
+  const [showTemporaryInCanvas, setShowTemporaryInCanvas] = useState(false);
   const [darkMode, setDarkMode] = useState(() => {
     const saved = localStorage.getItem('darkMode');
     if (saved !== null) return saved === 'true';
@@ -637,6 +638,7 @@ const DeadlineTracker = ({ foldersApi }) => {
               onTriggerClick={openAddModal}
             />
 
+            {viewMode === 'list' && (
             <Button
               onClick={() => {
                 const next = !isPlanningMode;
@@ -657,6 +659,7 @@ const DeadlineTracker = ({ foldersApi }) => {
               <LayoutGrid className="w-4 h-4 mr-2" />
               {isPlanningMode ? 'Exit Planning' : 'Planning Mode'}
             </Button>
+            )}
 
             {isPlanningMode && (
               <>
@@ -748,35 +751,63 @@ const DeadlineTracker = ({ foldersApi }) => {
               <p className="text-slate-500 dark:text-slate-400 text-sm mt-2">Add your first deadline to get started</p>
             </div>
           ) : viewMode === 'canvas' ? (
-            <CanvasView
-              items={deadlines}
-              getPositions={getPositions}
-              savePosition={savePosition}
-              onReset={resetPositions}
-              renderCard={(deadline) => {
-                const timeLeft = calculateTimeLeft(deadline.dueDate);
-                const dueStr = new Date(deadline.dueDate).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
-                return (
-                  <div className="w-48 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-3 shadow-sm select-none">
-                    <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate mb-1">{deadline.name}</p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate mb-2">{deadline.task}</p>
-                    <div className="flex items-center justify-between">
-                      <span className={`text-[10px] font-mono ${timeLeft.isOverdue ? 'text-red-500 font-bold' : 'text-slate-400 dark:text-slate-500'}`}>
-                        {timeLeft.isOverdue ? 'ПРОСРОЧЕН' : dueStr}
-                      </span>
-                      <button
-                        onPointerDown={e => e.stopPropagation()}
-                        onClick={e => { e.stopPropagation(); handleCompleteDeadline(deadline.id); }}
-                        className="text-slate-300 dark:text-slate-600 hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors"
-                        title="Выполнено"
-                      >
-                        <CheckCircle2 className="w-4 h-4" />
-                      </button>
+            <>
+              {/* Canvas toolbar: temporary toggle */}
+              <div className="flex items-center justify-end mb-3 gap-3">
+                <button
+                  onClick={() => setShowTemporaryInCanvas(v => !v)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                    showTemporaryInCanvas
+                      ? 'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400'
+                      : 'border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'
+                  }`}
+                >
+                  Temporary
+                </button>
+              </div>
+              <CanvasView
+                items={deadlines.filter(d => showTemporaryInCanvas ? true : !(d.isRecurring && new Date(d.dueDate).getTime() > currentTime.getTime()))}
+                getPositions={getPositions}
+                savePosition={savePosition}
+                onReset={resetPositions}
+                renderCard={(deadline) => {
+                  const timeLeft = calculateTimeLeft(deadline.dueDate);
+                  const { progressColor } = getDeadlineMetrics(timeLeft, deadline);
+                  const dueStr = new Date(deadline.dueDate).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+                  const accentColor = timeLeft.isOverdue ? '#ef4444'
+                    : progressColor.includes('green') ? '#22c55e'
+                    : progressColor.includes('yellow') ? '#eab308'
+                    : '#ef4444';
+                  return (
+                    <div
+                      className="w-52 bg-white dark:bg-slate-800 rounded-xl shadow-md border border-slate-100 dark:border-slate-700 overflow-hidden select-none"
+                      style={{ borderLeft: `4px solid ${accentColor}` }}
+                    >
+                      <div className="px-3 pt-3 pb-2">
+                        <p className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate leading-tight">{deadline.name}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">{deadline.task}</p>
+                      </div>
+                      <div className="flex items-center justify-between px-3 pb-2.5">
+                        <span
+                          className="text-xs font-semibold px-1.5 py-0.5 rounded"
+                          style={{ color: accentColor, background: `${accentColor}18` }}
+                        >
+                          {timeLeft.isOverdue ? 'overdue' : dueStr}
+                        </span>
+                        <button
+                          onPointerDown={e => e.stopPropagation()}
+                          onClick={e => { e.stopPropagation(); handleCompleteDeadline(deadline.id); }}
+                          className="text-slate-300 dark:text-slate-600 hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors"
+                          title="Done"
+                        >
+                          <CheckCircle2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                );
-              }}
-            />
+                  );
+                }}
+              />
+            </>
           ) : (
             <div className="space-y-12">
               {(() => {
