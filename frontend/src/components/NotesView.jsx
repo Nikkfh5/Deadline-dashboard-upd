@@ -223,8 +223,8 @@ export default function NotesView({ folderId }) {
   };
 
   const handleDelete = async (noteId) => {
-    await deleteNoteApi(noteId);
     setNotes(prev => prev.filter(n => n.id !== noteId));
+    deleteNoteApi(noteId);
   };
 
   const handleDragEnd = useCallback((event) => {
