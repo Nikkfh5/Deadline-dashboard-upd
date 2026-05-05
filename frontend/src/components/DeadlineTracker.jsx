@@ -82,6 +82,8 @@ const DeadlineTracker = ({ foldersApi }) => {
   const [isDeleteAllConfirming, setIsDeleteAllConfirming] = useState(false);
   const { viewMode, setViewMode, getPositions, savePosition, resetPositions } = useViewMode(folderId);
   const [showTemporaryInCanvas, setShowTemporaryInCanvas] = useState(false);
+  const doSyncRef = useRef(null);
+  const lsKey = folderId ? `deadlines-${folderId}` : 'deadlines';
   const [darkMode, setDarkMode] = useState(() => {
     const saved = localStorage.getItem('darkMode');
     if (saved !== null) return saved === 'true';
@@ -111,19 +113,26 @@ const DeadlineTracker = ({ foldersApi }) => {
   };
 
   useEffect(() => {
+    // Clear immediately to avoid showing stale data from another folder
+    setDeadlines([]);
+    recentlyDeletedRef.current = new Set();
+    setIsDeleteAllConfirming(false);
+
     const loadDeadlines = async () => {
-      // Load local data first
-      const saved = localStorage.getItem('deadlines');
+      // Load folder-scoped cache first
+      const saved = localStorage.getItem(lsKey);
       let localDeadlines = [];
       if (saved) {
-        localDeadlines = JSON.parse(saved).map(migrateDeadline);
-      } else {
+        try { localDeadlines = JSON.parse(saved).map(migrateDeadline); } catch {}
+      } else if (!folderId) {
         localDeadlines = mockDeadlines.map(migrateDeadline);
       }
-      setDeadlines(localDeadlines);
-      initializeWithExisting(localDeadlines.map(d => d.id));
+      if (localDeadlines.length) {
+        setDeadlines(localDeadlines);
+        initializeWithExisting(localDeadlines.map(d => d.id));
+      }
 
-      // If we have a backend token, fetch and merge server deadlines
+      // Fetch from server
       if (hasToken()) {
         const serverDeadlines = await fetchDeadlines(folderId);
         if (serverDeadlines !== null) {
@@ -131,12 +140,12 @@ const DeadlineTracker = ({ foldersApi }) => {
           const merged = mergeDeadlines(normalized, localDeadlines);
           setDeadlines(merged);
           initializeWithExisting(merged.map(d => d.id));
-          localStorage.setItem('deadlines', JSON.stringify(merged));
+          localStorage.setItem(lsKey, JSON.stringify(merged));
         }
       }
     };
     loadDeadlines();
-  }, [folderId]);
+  }, [folderId]); // lsKey derived from folderId, migrateDeadline/mockDeadlines are stable
 
   useEffect(() => {
     // Update current time every second
@@ -162,13 +171,15 @@ const DeadlineTracker = ({ foldersApi }) => {
       });
     }
   };
+  // Keep ref current so the polling interval always calls the latest version
+  doSyncRef.current = doSync;
 
   useEffect(() => {
     if (!hasToken()) return;
 
     const startPolling = () => {
       clearInterval(syncIntervalRef.current);
-      syncIntervalRef.current = setInterval(doSync, 10000);
+      syncIntervalRef.current = setInterval(() => doSyncRef.current?.(), 10000);
     };
     const stopPolling = () => {
       clearInterval(syncIntervalRef.current);
@@ -176,7 +187,7 @@ const DeadlineTracker = ({ foldersApi }) => {
 
     const onVisibility = () => {
       if (document.visibilityState === 'visible') {
-        doSync(); // instant sync on tab focus
+        doSyncRef.current?.();
         startPolling();
       } else {
         stopPolling();
@@ -194,12 +205,13 @@ const DeadlineTracker = ({ foldersApi }) => {
 
   const saveTimerRef = useRef(null);
   useEffect(() => {
+    if (!deadlines.length) return;
     clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
-      localStorage.setItem('deadlines', JSON.stringify(deadlines));
+      localStorage.setItem(lsKey, JSON.stringify(deadlines));
     }, 500);
     return () => clearTimeout(saveTimerRef.current);
-  }, [deadlines]);
+  }, [deadlines, lsKey]);
 
   const calculateTimeLeft = (dueDate) => {
     // All calculations in UTC, stored timestamps are in UTC
