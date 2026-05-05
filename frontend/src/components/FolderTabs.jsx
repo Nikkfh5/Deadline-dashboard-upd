@@ -8,10 +8,12 @@ const TYPE_ICONS = {
 
 function FolderTab({ folder, isActive, onClick, onRename, onDelete, canDelete }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(folder.name);
   const inputRef = useRef(null);
   const menuRef = useRef(null);
+  const triggerRef = useRef(null);
 
   useEffect(() => {
     if (renaming) inputRef.current?.focus();
@@ -19,12 +21,28 @@ function FolderTab({ folder, isActive, onClick, onRename, onDelete, canDelete })
 
   useEffect(() => {
     if (!menuOpen) return;
-    const handler = (e) => {
-      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
+    const close = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target) &&
+          triggerRef.current && !triggerRef.current.contains(e.target)) {
+        setMenuOpen(false);
+      }
     };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    const onScroll = () => setMenuOpen(false);
+    document.addEventListener('mousedown', close);
+    window.addEventListener('scroll', onScroll, true);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      window.removeEventListener('scroll', onScroll, true);
+    };
   }, [menuOpen]);
+
+  const openMenu = (e) => {
+    e.stopPropagation();
+    if (menuOpen) { setMenuOpen(false); return; }
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (rect) setMenuPos({ top: rect.bottom + 4, left: rect.left });
+    setMenuOpen(true);
+  };
 
   const commitRename = async () => {
     const trimmed = renameValue.trim();
@@ -70,7 +88,8 @@ function FolderTab({ folder, isActive, onClick, onRename, onDelete, canDelete })
 
       {/* Context menu trigger — visible on hover/active */}
       <button
-        onClick={e => { e.stopPropagation(); setMenuOpen(v => !v); }}
+        ref={triggerRef}
+        onClick={openMenu}
         className={`
           absolute right-0 top-1 flex items-center justify-center w-5 h-5 rounded
           transition-opacity duration-100
@@ -84,19 +103,20 @@ function FolderTab({ folder, isActive, onClick, onRename, onDelete, canDelete })
       {menuOpen && (
         <div
           ref={menuRef}
-          className="absolute top-8 left-0 z-50 min-w-[140px] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg py-1"
+          style={{ position: 'fixed', top: menuPos.top, left: menuPos.left, zIndex: 9999 }}
+          className="min-w-[150px] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl py-1"
         >
           <button
             onClick={() => { setMenuOpen(false); setRenaming(true); setRenameValue(folder.name); }}
             className="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
           >
             <Pencil className="w-3.5 h-3.5" />
-            Переименовать
+            Rename
           </button>
           <button
             onClick={() => { setMenuOpen(false); onDelete(folder.id); }}
             disabled={!canDelete}
-            title={!canDelete ? 'Нельзя удалить единственную папку дедлайнов' : undefined}
+            title={!canDelete ? 'Cannot delete the only deadlines folder' : undefined}
             className={`
               flex items-center gap-2 w-full px-3 py-1.5 text-sm
               ${canDelete
@@ -106,7 +126,7 @@ function FolderTab({ folder, isActive, onClick, onRename, onDelete, canDelete })
             `}
           >
             <Trash2 className="w-3.5 h-3.5" />
-            Удалить
+            Delete
           </button>
         </div>
       )}

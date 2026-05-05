@@ -794,14 +794,24 @@ const DeadlineTracker = ({ foldersApi }) => {
                         >
                           {timeLeft.isOverdue ? 'overdue' : dueStr}
                         </span>
-                        <button
-                          onPointerDown={e => e.stopPropagation()}
-                          onClick={e => { e.stopPropagation(); handleCompleteDeadline(deadline.id); }}
-                          className="text-slate-300 dark:text-slate-600 hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors"
-                          title="Done"
-                        >
-                          <CheckCircle2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onPointerDown={e => e.stopPropagation()}
+                            onClick={e => { e.stopPropagation(); handleDeleteDeadline(deadline.id); }}
+                            className="text-slate-300 dark:text-slate-600 hover:text-rose-500 dark:hover:text-rose-400 transition-colors"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onPointerDown={e => e.stopPropagation()}
+                            onClick={e => { e.stopPropagation(); handleCompleteDeadline(deadline.id); }}
+                            className="text-slate-300 dark:text-slate-600 hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors"
+                            title="Done"
+                          >
+                            <CheckCircle2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
