@@ -198,8 +198,23 @@ export default function NotesView({ folderId }) {
 
   const handleCreate = async (data) => {
     setCreating(false);
+    const tempId = `temp-${Date.now()}`;
+    const tempNote = {
+      id: tempId,
+      folder_id: folderId,
+      title: data.title || null,
+      content: data.content || '',
+      order: notes.length,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    setNotes(prev => [...prev, tempNote]);
     const note = await createNoteApi({ ...data, folder_id: folderId });
-    if (note) setNotes(prev => [...prev, note]);
+    if (note) {
+      setNotes(prev => prev.map(n => n.id === tempId ? note : n));
+    } else {
+      setNotes(prev => prev.filter(n => n.id !== tempId));
+    }
   };
 
   const handleUpdate = async (noteId, data) => {

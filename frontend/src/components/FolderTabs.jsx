@@ -59,7 +59,7 @@ function FolderTab({ folder, isActive, onClick, onRename, onDelete, canDelete })
       <button
         onClick={onClick}
         className={`
-          flex items-center gap-1.5 px-3 py-1.5 rounded-t-md text-sm font-medium
+          flex items-center gap-1.5 pl-3 pr-7 py-1.5 rounded-t-md text-sm font-medium
           border-b-2 transition-all duration-150 whitespace-nowrap
           ${isActive
             ? 'border-slate-700 dark:border-slate-200 text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800'
