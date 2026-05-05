@@ -133,29 +133,31 @@ async def _handle_message(event):
     if not text or len(text) < 10:
         return
 
-    logger.debug(f"Channel message: {chat.title} (id={chat.id}, username={chat.username}): {text[:80]}")
-
     channel_username = f"@{chat.username}" if chat.username else None
-    channel_id = chat.id
+    channel_id = int(chat.id)
+
+    logger.info(f"Channel message: {chat.title} (id={channel_id}, username={channel_username}): {text[:80]}")
 
     db = get_db()
+
+    # Build all possible ID variants to match against stored channel_id.
+    # Stored values may be positive Int64 (e.g. 3664820973) or signed 32-bit negative (e.g. -630146323).
+    id_variants = list({channel_id, -channel_id, abs(channel_id)})
 
     # Match by @username, string channel_id, or channel_id field (for private channels)
     match_values = [v for v in [channel_username, str(channel_id)] if v]
 
-    # For private channels, chat.id is the full ID. Try matching all ways.
     sources = await db.sources.find({
         "type": "telegram_channel",
         "is_active": True,
         "$or": [
             {"identifier": {"$in": match_values}},
-            {"channel_id": channel_id},
-            {"channel_id": {"$in": [channel_id, abs(channel_id)]}},
+            {"channel_id": {"$in": id_variants}},
         ],
     }).to_list(100)
 
     if not sources:
-        logger.debug(f"No sources found for channel {chat.title} (id={channel_id}, username={channel_username})")
+        logger.info(f"No sources found for channel {chat.title} (id={channel_id}, variants={id_variants}, username={channel_username})")
         return
 
     # Filter out users who disabled channel parsing

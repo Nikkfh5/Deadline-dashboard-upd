@@ -89,9 +89,9 @@ async def _join_by_invite(client, db, source, invite_hash):
             "display_name": title,
             "updated_at": datetime.utcnow(),
         }
-        # Store channel ID for matching incoming messages
+        # Store channel ID for matching incoming messages (explicit int conversion)
         if chat:
-            update_fields["channel_id"] = chat.id
+            update_fields["channel_id"] = int(chat.id)
 
         await db.sources.update_one({"_id": source["_id"]}, {"$set": update_fields})
         logger.info(f"Joined private channel via invite: {title} (hash: {invite_hash[:8]}...)")
@@ -108,7 +108,7 @@ async def _join_by_invite(client, db, source, invite_hash):
                 "updated_at": datetime.utcnow(),
             }
             if chat:
-                update_fields["channel_id"] = chat.id
+                update_fields["channel_id"] = int(chat.id)
             await db.sources.update_one({"_id": source["_id"]}, {"$set": update_fields})
             logger.info(f"Already in private channel: {title}")
         except Exception as e:
