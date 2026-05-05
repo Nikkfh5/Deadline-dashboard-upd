@@ -24,6 +24,7 @@ class DeadlineCreate(BaseModel):
     last_started_at: Optional[datetime] = None
     days_needed: Optional[int] = Field(default=None, ge=1)
     source: DeadlineSource = DeadlineSource()
+    folder_id: Optional[str] = None
 
     @field_validator('name', 'task', mode='before')
     @classmethod
@@ -68,3 +69,4 @@ class Deadline(BaseModel):
     confidence: Optional[float] = None
     is_postponed: bool = False
     previous_due_date: Optional[datetime] = None
+    folder_id: Optional[str] = None

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Clock, Plus, Moon, Sun, ChevronDown, ChevronUp, Calendar as CalendarIcon, LayoutGrid, Trash2, X } from 'lucide-react';
+import { Clock, Plus, Moon, Sun, ChevronDown, ChevronUp, Calendar as CalendarIcon, LayoutGrid, Trash2, X, CheckCircle2, List } from 'lucide-react';
 import { Button } from './ui/button';
 import { TooltipProvider } from './ui/tooltip';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
@@ -14,6 +14,10 @@ import ManualPlanningToolbar from './ManualPlanningToolbar';
 import { useSnapshots } from '../hooks/useSnapshots';
 import { useManualPlan } from '../hooks/useManualPlan';
 import { useSeenDeadlines } from '../hooks/useSeenDeadlines';
+import { useViewMode } from '../hooks/useViewMode';
+import CanvasView from './CanvasView';
+import FolderTabs from './FolderTabs';
+import NotesView from './NotesView';
 
 // Normalize snake_case server response to camelCase frontend format
 const normalizeServerDeadline = (d) => ({
@@ -42,7 +46,9 @@ const mergeDeadlines = (serverList, localList) => {
   return [...serverList, ...localOnly];
 };
 
-const DeadlineTracker = () => {
+const DeadlineTracker = ({ foldersApi }) => {
+  const folderId = foldersApi?.activeFolderId ?? null;
+  const activeFolder = foldersApi?.activeFolder ?? null;
   const [deadlines, setDeadlines] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDeadline, setEditingDeadline] = useState(null);
@@ -74,6 +80,7 @@ const DeadlineTracker = () => {
   const [statsKey, setStatsKey] = useState(0);
   const refreshStats = () => setStatsKey(k => k + 1);
   const [isDeleteAllConfirming, setIsDeleteAllConfirming] = useState(false);
+  const { viewMode, setViewMode, getPositions, savePosition, resetPositions } = useViewMode(folderId);
   const [darkMode, setDarkMode] = useState(() => {
     const saved = localStorage.getItem('darkMode');
     if (saved !== null) return saved === 'true';
@@ -117,7 +124,7 @@ const DeadlineTracker = () => {
 
       // If we have a backend token, fetch and merge server deadlines
       if (hasToken()) {
-        const serverDeadlines = await fetchDeadlines();
+        const serverDeadlines = await fetchDeadlines(folderId);
         if (serverDeadlines !== null) {
           const normalized = serverDeadlines.map(normalizeServerDeadline);
           const merged = mergeDeadlines(normalized, localDeadlines);
@@ -128,7 +135,7 @@ const DeadlineTracker = () => {
       }
     };
     loadDeadlines();
-  }, []);
+  }, [folderId]);
 
   useEffect(() => {
     // Update current time every second
@@ -141,7 +148,7 @@ const DeadlineTracker = () => {
   // Smart sync: 10s when tab visible, 0 when hidden, instant on tab focus
   const syncIntervalRef = useRef(null);
   const doSync = async () => {
-    const serverDeadlines = await fetchDeadlines();
+    const serverDeadlines = await fetchDeadlines(folderId);
     if (serverDeadlines !== null) {
       const deleted = recentlyDeletedRef.current;
       const normalized = serverDeadlines
@@ -411,7 +418,7 @@ const DeadlineTracker = () => {
           interval_days: deadline.intervalDays,
           last_started_at: deadline.lastStartedAt,
           days_needed: deadline.daysNeeded,
-        }).then((serverDeadline) => {
+        }, folderId).then((serverDeadline) => {
           if (serverDeadline) {
             const normalized = normalizeServerDeadline(serverDeadline);
             markSeen(normalized.id);
@@ -460,7 +467,7 @@ const DeadlineTracker = () => {
     setManualActiveDeadlineId(null);
     setIsDeleteAllConfirming(false);
     if (hasToken()) {
-      await deleteAllDeadlinesApi();
+      await deleteAllDeadlinesApi(folderId);
       refreshStats();
     }
   };
@@ -573,8 +580,52 @@ const DeadlineTracker = () => {
             </div>
           </div>
 
+          {/* Folder Tabs */}
+          {foldersApi && foldersApi.folders.length > 0 && (
+            <FolderTabs
+              folders={foldersApi.folders}
+              activeFolderId={folderId}
+              onSwitch={foldersApi.switchFolder}
+              onCreate={foldersApi.createFolder}
+              onRename={foldersApi.renameFolder}
+              onDelete={foldersApi.deleteFolder}
+            />
+          )}
+
+          {/* Ideas folder content */}
+          {activeFolder?.type === 'ideas' ? (
+            <NotesView folderId={folderId} />
+          ) : (
+          <>
+
           {/* Action Buttons */}
           <div className="flex justify-center gap-3 mb-8 flex-wrap">
+            {/* View mode toggle */}
+            <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg">
+              <button
+                onClick={() => setViewMode('list')}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  viewMode === 'list'
+                    ? 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 shadow-sm'
+                    : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'
+                }`}
+              >
+                <List className="w-3.5 h-3.5" />
+                Список
+              </button>
+              <button
+                onClick={() => setViewMode('canvas')}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  viewMode === 'canvas'
+                    ? 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 shadow-sm'
+                    : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'
+                }`}
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                Холст
+              </button>
+            </div>
+
             <DeadlineModal
               isOpen={isModalOpen}
               onOpenChange={setIsModalOpen}
@@ -696,6 +747,36 @@ const DeadlineTracker = () => {
               <p className="text-slate-500 dark:text-slate-400 text-lg">Nothing to track yet</p>
               <p className="text-slate-500 dark:text-slate-400 text-sm mt-2">Add your first deadline to get started</p>
             </div>
+          ) : viewMode === 'canvas' ? (
+            <CanvasView
+              items={deadlines}
+              getPositions={getPositions}
+              savePosition={savePosition}
+              onReset={resetPositions}
+              renderCard={(deadline) => {
+                const timeLeft = calculateTimeLeft(deadline.dueDate);
+                const dueStr = new Date(deadline.dueDate).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+                return (
+                  <div className="w-48 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-3 shadow-sm select-none">
+                    <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate mb-1">{deadline.name}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate mb-2">{deadline.task}</p>
+                    <div className="flex items-center justify-between">
+                      <span className={`text-[10px] font-mono ${timeLeft.isOverdue ? 'text-red-500 font-bold' : 'text-slate-400 dark:text-slate-500'}`}>
+                        {timeLeft.isOverdue ? 'ПРОСРОЧЕН' : dueStr}
+                      </span>
+                      <button
+                        onPointerDown={e => e.stopPropagation()}
+                        onClick={e => { e.stopPropagation(); handleCompleteDeadline(deadline.id); }}
+                        className="text-slate-300 dark:text-slate-600 hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors"
+                        title="Выполнено"
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              }}
+            />
           ) : (
             <div className="space-y-12">
               {(() => {
@@ -783,6 +864,8 @@ const DeadlineTracker = () => {
 
           {/* Statistics */}
           <StatsPanel refreshKey={statsKey} />
+          </>
+          )}
         </div>
       </div>
     </TooltipProvider>

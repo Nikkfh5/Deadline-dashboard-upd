@@ -27,14 +27,36 @@ def _deadline_from_doc(doc: dict) -> Deadline:
         confidence=doc.get("confidence"),
         is_postponed=doc.get("is_postponed", False),
         previous_due_date=doc.get("previous_due_date"),
+        folder_id=doc.get("folder_id"),
     )
 
 
+async def _build_folder_query(db, user_id: str, folder_id: str) -> dict:
+    """Build MongoDB filter for deadlines in a folder.
+    For the default folder, also include deadlines without folder_id."""
+    folder = await db.folders.find_one({"id": folder_id, "user_id": user_id})
+    if folder and folder.get("is_default"):
+        return {"user_id": user_id, "$or": [{"folder_id": folder_id}, {"folder_id": None}, {"folder_id": {"$exists": False}}]}
+    return {"user_id": user_id, "folder_id": folder_id}
+
+
 @router.get("", response_model=List[Deadline])
-async def get_deadlines(token: str = Query(...), skip: int = Query(0, ge=0), limit: int = Query(100, ge=1, le=500)):
+async def get_deadlines(
+    token: str = Query(...),
+    folder_id: str = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
+):
     user = await get_user_by_token(token)
     db = get_db()
-    docs = await db.deadlines.find({"user_id": str(user["_id"])}).skip(skip).limit(limit).to_list(limit)
+    user_id = str(user["_id"])
+
+    if folder_id:
+        query = await _build_folder_query(db, user_id, folder_id)
+    else:
+        query = {"user_id": user_id}
+
+    docs = await db.deadlines.find(query).skip(skip).limit(limit).to_list(limit)
     return [_deadline_from_doc(doc) for doc in docs]
 
 
@@ -59,6 +81,7 @@ async def create_deadline(data: DeadlineCreate, token: str = Query(...)):
         "confidence": None,
         "is_postponed": False,
         "previous_due_date": None,
+        "folder_id": data.folder_id,
     }
     await db.deadlines.insert_one(doc)
     return _deadline_from_doc(doc)
@@ -84,10 +107,17 @@ async def update_deadline(deadline_id: str, data: DeadlineUpdate, token: str = Q
 
 
 @router.delete("")
-async def delete_all_deadlines(token: str = Query(...)):
+async def delete_all_deadlines(token: str = Query(...), folder_id: str = Query(None)):
     user = await get_user_by_token(token)
     db = get_db()
-    result = await db.deadlines.delete_many({"user_id": str(user["_id"])})
+    user_id = str(user["_id"])
+
+    if folder_id:
+        query = await _build_folder_query(db, user_id, folder_id)
+    else:
+        query = {"user_id": user_id}
+
+    result = await db.deadlines.delete_many(query)
     return {"deleted": result.deleted_count}
 
 

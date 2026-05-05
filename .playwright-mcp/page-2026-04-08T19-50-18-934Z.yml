@@ -1,0 +1,224 @@
+- generic [ref=e5]:
+  - generic [ref=e6]:
+    - heading "DEADLINES" [level=1] [ref=e7]
+    - button [ref=e9] [cursor=pointer]:
+      - img
+  - generic [ref=e10]:
+    - button "Add Deadline" [ref=e11] [cursor=pointer]:
+      - img
+      - text: Add Deadline
+    - button "Planning Mode" [ref=e12] [cursor=pointer]:
+      - img
+      - text: Planning Mode
+  - generic [ref=e13]:
+    - generic [ref=e14]:
+      - heading "Common" [level=2] [ref=e15]
+      - generic [ref=e16]:
+        - generic [ref=e17] [cursor=pointer]:
+          - button [ref=e18]:
+            - img [ref=e19]
+          - generic [ref=e24]: new
+          - generic [ref=e25]:
+            - generic [ref=e26]:
+              - img [ref=e27]
+              - generic [ref=e30]:
+                - img [ref=e31]
+                - generic [ref=e34]:
+                  - generic [ref=e35]: 0d 22h
+                  - generic [ref=e36]: 8m 41s
+            - generic [ref=e37]:
+              - heading "а" [level=3] [ref=e38]
+              - paragraph [ref=e39]: а
+              - paragraph [ref=e40]: 9 апр., 20:59 to go
+        - generic [ref=e41] [cursor=pointer]:
+          - button [ref=e42]:
+            - img [ref=e43]
+          - generic [ref=e48]: new
+          - generic [ref=e49]:
+            - generic [ref=e50]:
+              - img [ref=e51]
+              - generic [ref=e54]:
+                - img [ref=e55]
+                - generic [ref=e58]:
+                  - generic [ref=e59]: 0d 22h
+                  - generic [ref=e60]: 8m 41s
+            - generic [ref=e61]:
+              - heading "в" [level=3] [ref=e62]
+              - paragraph [ref=e63]: в
+              - paragraph [ref=e64]: 9 апр., 20:59 to go
+        - generic [ref=e65] [cursor=pointer]:
+          - button [ref=e66]:
+            - img [ref=e67]
+          - generic [ref=e72]: new
+          - generic [ref=e73]:
+            - generic [ref=e74]:
+              - img [ref=e75]
+              - generic [ref=e78]:
+                - img [ref=e79]
+                - generic [ref=e82]:
+                  - generic [ref=e83]: 1d 1h
+                  - generic [ref=e84]: 8m 41s
+            - generic [ref=e85]:
+              - heading "АКОС" [level=3] [ref=e86]
+              - paragraph [ref=e87]: ДЗ 4
+              - paragraph [ref=e88]: 9 апр., 23:59 to go
+        - generic [ref=e89] [cursor=pointer]:
+          - button [ref=e90]:
+            - img [ref=e91]
+          - generic [ref=e96]: new
+          - generic [ref=e97]:
+            - generic [ref=e98]:
+              - img [ref=e99]
+              - generic [ref=e102]:
+                - img [ref=e103]
+                - generic [ref=e106]:
+                  - generic [ref=e107]: 1d 22h
+                  - generic [ref=e108]: 8m 41s
+            - generic [ref=e109]:
+              - heading "мп" [level=3] [ref=e110]
+              - paragraph [ref=e111]: оар
+              - paragraph [ref=e112]: 10 апр., 20:59 to go
+        - generic [ref=e113] [cursor=pointer]:
+          - button [ref=e114]:
+            - img [ref=e115]
+          - generic [ref=e119]:
+            - generic [ref=e120]:
+              - img [ref=e121]
+              - generic [ref=e124]:
+                - img [ref=e125]
+                - generic [ref=e128]:
+                  - generic [ref=e129]: 2d 22h
+                  - generic [ref=e130]: 9m 40s
+            - generic [ref=e131]:
+              - heading "стажка" [level=3] [ref=e132]
+              - paragraph [ref=e133]: учить мо
+              - paragraph [ref=e134]: 11 апр., 20:59 to go
+        - generic [ref=e135] [cursor=pointer]:
+          - button [ref=e136]:
+            - img [ref=e137]
+          - generic [ref=e141]:
+            - generic [ref=e142]:
+              - img [ref=e143]
+              - generic [ref=e146]:
+                - img [ref=e147]
+                - generic [ref=e150]:
+                  - generic [ref=e151]: 4d 22h
+                  - generic [ref=e152]: 8m 41s
+            - generic [ref=e153]:
+              - heading "курсач" [level=3] [ref=e154]
+              - paragraph [ref=e155]: презентациия
+              - paragraph [ref=e156]: 13 апр., 20:59 to go
+        - generic [ref=e157] [cursor=pointer]:
+          - button [ref=e158]:
+            - img [ref=e159]
+          - generic [ref=e163]:
+            - generic [ref=e164]:
+              - img [ref=e165]
+              - generic [ref=e168]:
+                - img [ref=e169]
+                - generic [ref=e172]:
+                  - generic [ref=e173]: 7d 22h
+                  - generic [ref=e174]: 8m 41s
+            - generic [ref=e175]:
+              - heading "прак дз матрички" [level=3] [ref=e176]
+              - paragraph [ref=e177]: 3-е практическое ДЗ | Зад...
+              - paragraph [ref=e178]: 16 апр., 20:59 to go
+        - generic [ref=e179] [cursor=pointer]:
+          - button [ref=e180]:
+            - img [ref=e181]
+          - generic [ref=e186]: new
+          - generic [ref=e187]:
+            - generic [ref=e188]:
+              - img [ref=e189]
+              - generic [ref=e192]:
+                - img [ref=e193]
+                - generic [ref=e196]:
+                  - generic [ref=e197]: 8d 1h
+                  - generic [ref=e198]: 8m 41s
+            - generic [ref=e199]:
+              - heading "ОМВ (Оптимизация и матричные вычисления)" [level=3] [ref=e200]
+              - paragraph [ref=e201]: 3-е практическое ДЗ | Зад...
+              - paragraph [ref=e202]: 16 апр., 23:59 to go
+        - generic [ref=e203] [cursor=pointer]:
+          - button [ref=e204]:
+            - img [ref=e205]
+          - generic [ref=e209]:
+            - generic [ref=e210]:
+              - img [ref=e211]
+              - generic [ref=e214]:
+                - img [ref=e215]
+                - generic [ref=e218]:
+                  - generic [ref=e219]: 11d 22h
+                  - generic [ref=e220]: 9m 41s
+            - generic [ref=e221]:
+              - heading "колок матрички" [level=3] [ref=e222]
+              - paragraph [ref=e223]: Коллоквиум (группы 3, 4, ...
+              - paragraph [ref=e224]: 20 апр., 21:00 to go
+        - generic [ref=e225] [cursor=pointer]:
+          - button [ref=e226]:
+            - img [ref=e227]
+          - generic [ref=e231]:
+            - generic [ref=e232]:
+              - img [ref=e233]
+              - generic [ref=e236]:
+                - img [ref=e237]
+                - generic [ref=e240]:
+                  - generic [ref=e241]: 13d 1h
+                  - generic [ref=e242]: 8m 41s
+            - generic [ref=e243]:
+              - heading "ОМВ" [level=3] [ref=e244]
+              - paragraph [ref=e245]: Коллоквиум ОМВ | День 14 ...
+              - paragraph [ref=e246]: 21 апр., 23:59 to go
+        - generic [ref=e247] [cursor=pointer]:
+          - button [ref=e248]:
+            - img [ref=e249]
+          - generic [ref=e253]:
+            - generic [ref=e254]:
+              - img [ref=e255]
+              - generic [ref=e258]:
+                - img [ref=e259]
+                - generic [ref=e262]:
+                  - generic [ref=e263]: 13d 10h
+                  - generic [ref=e264]: 9m 41s
+            - generic [ref=e265]:
+              - heading "курсовая" [level=3] [ref=e266]
+              - paragraph [ref=e267]: защита
+              - paragraph [ref=e268]: 22 апр., 09:00 to go
+        - generic [ref=e269] [cursor=pointer]:
+          - button [ref=e270]:
+            - img [ref=e271]
+          - generic [ref=e276]: new
+          - generic [ref=e277]:
+            - generic [ref=e278]:
+              - img [ref=e279]
+              - generic [ref=e282]:
+                - img [ref=e283]
+                - generic [ref=e286]:
+                  - generic [ref=e287]: 16d 1h
+                  - generic [ref=e288]: 8m 41s
+            - generic [ref=e289]:
+              - heading "Динамическая оптимизация" [level=3] [ref=e290]
+              - paragraph [ref=e291]: ДЗ (вариационное исчислен...
+              - paragraph [ref=e292]: 24 апр., 23:59 to go
+        - generic [ref=e293] [cursor=pointer]:
+          - button [ref=e294]:
+            - img [ref=e295]
+          - generic [ref=e299]:
+            - generic [ref=e300]:
+              - img [ref=e301]
+              - generic [ref=e304]:
+                - img [ref=e305]
+                - generic [ref=e308]:
+                  - generic [ref=e309]: 33d 22h
+                  - generic [ref=e310]: 9m 40s
+            - generic [ref=e311]:
+              - heading "акос дз" [level=3] [ref=e312]
+              - paragraph [ref=e313]: дед мороз
+              - paragraph [ref=e314]: 12 мая, 20:59 to go
+    - button "Temporary" [ref=e317] [cursor=pointer]:
+      - text: Temporary
+      - img
+  - button "Calendar" [ref=e320] [cursor=pointer]:
+    - img
+    - text: Calendar
+    - img

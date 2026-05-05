@@ -32,12 +32,14 @@ function getToken() {
   return sessionToken;
 }
 
-export async function fetchDeadlines() {
+export async function fetchDeadlines(folderId) {
   const token = getToken();
   if (!token) return null;
 
   try {
-    const response = await api.get('/deadlines', { params: { token } });
+    const params = { token };
+    if (folderId) params.folder_id = folderId;
+    const response = await api.get('/deadlines', { params });
     return response.data;
   } catch (error) {
     if (error.response?.status === 401) {
@@ -49,12 +51,13 @@ export async function fetchDeadlines() {
   }
 }
 
-export async function createDeadline(deadline) {
+export async function createDeadline(deadline, folderId) {
   const token = getToken();
   if (!token) return null;
 
   try {
-    const response = await api.post('/deadlines', deadline, { params: { token } });
+    const body = folderId ? { ...deadline, folder_id: folderId } : deadline;
+    const response = await api.post('/deadlines', body, { params: { token } });
     return response.data;
   } catch (error) {
     console.error('Failed to create deadline:', error);
@@ -101,15 +104,127 @@ export async function completeDeadlineApi(deadlineId) {
   }
 }
 
-export async function deleteAllDeadlinesApi() {
+export async function deleteAllDeadlinesApi(folderId) {
   const token = getToken();
   if (!token) return false;
 
   try {
-    await api.delete('/deadlines', { params: { token } });
+    const params = { token };
+    if (folderId) params.folder_id = folderId;
+    await api.delete('/deadlines', { params });
     return true;
   } catch (error) {
     console.error('Failed to delete all deadlines:', error);
+    return false;
+  }
+}
+
+// Folders API
+export async function fetchFolders() {
+  const token = getToken();
+  if (!token) return null;
+  try {
+    const response = await api.get('/folders', { params: { token } });
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch folders:', error);
+    return null;
+  }
+}
+
+export async function createFolderApi(data) {
+  const token = getToken();
+  if (!token) return null;
+  try {
+    const response = await api.post('/folders', data, { params: { token } });
+    return response.data;
+  } catch (error) {
+    console.error('Failed to create folder:', error);
+    return null;
+  }
+}
+
+export async function updateFolderApi(folderId, data) {
+  const token = getToken();
+  if (!token) return null;
+  try {
+    const response = await api.put(`/folders/${folderId}`, data, { params: { token } });
+    return response.data;
+  } catch (error) {
+    console.error('Failed to update folder:', error);
+    return null;
+  }
+}
+
+export async function deleteFolderApi(folderId) {
+  const token = getToken();
+  if (!token) return false;
+  try {
+    await api.delete(`/folders/${folderId}`, { params: { token } });
+    return true;
+  } catch (error) {
+    console.error('Failed to delete folder:', error);
+    return false;
+  }
+}
+
+// Notes API
+export async function fetchNotes(folderId) {
+  const token = getToken();
+  if (!token) return null;
+  try {
+    const response = await api.get('/notes', { params: { token, folder_id: folderId } });
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch notes:', error);
+    return null;
+  }
+}
+
+export async function createNoteApi(data) {
+  const token = getToken();
+  if (!token) return null;
+  try {
+    const response = await api.post('/notes', data, { params: { token } });
+    return response.data;
+  } catch (error) {
+    console.error('Failed to create note:', error);
+    return null;
+  }
+}
+
+export async function updateNoteApi(noteId, data) {
+  const token = getToken();
+  if (!token) return null;
+  try {
+    const response = await api.put(`/notes/${noteId}`, data, { params: { token } });
+    return response.data;
+  } catch (error) {
+    console.error('Failed to update note:', error);
+    return null;
+  }
+}
+
+export async function deleteNoteApi(noteId) {
+  const token = getToken();
+  if (!token) return false;
+  try {
+    await api.delete(`/notes/${noteId}`, { params: { token } });
+    return true;
+  } catch (error) {
+    console.error('Failed to delete note:', error);
+    return false;
+  }
+}
+
+export async function reorderNotesApi(items) {
+  const token = getToken();
+  if (!token) return false;
+  try {
+    await api.put('/notes/reorder', items, { params: { token } });
+    return true;
+  } catch (error) {
+    console.error('Failed to reorder notes:', error);
     return false;
   }
 }

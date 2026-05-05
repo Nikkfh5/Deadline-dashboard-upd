@@ -127,10 +127,14 @@ from routers.deadlines import router as deadlines_router
 from routers.users import router as users_router
 from routers.sources import router as sources_router
 from routers.stats import router as stats_router
+from routers.folders import router as folders_router
+from routers.notes import router as notes_router
 app.include_router(deadlines_router)
 app.include_router(users_router)
 app.include_router(sources_router)
 app.include_router(stats_router)
+app.include_router(folders_router)
+app.include_router(notes_router)
 
 _default_frontend = os.environ.get("FRONTEND_URL", "http://localhost:5173")
 cors_origins = os.environ.get("CORS_ORIGINS", _default_frontend).split(",")
