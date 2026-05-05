@@ -193,8 +193,23 @@ export default function NotesView({ folderId }) {
 
   useEffect(() => {
     if (!folderId) return;
-    fetchNotes(folderId).then(data => { if (data) setNotes(data); });
+    // Show cache instantly, then update from server
+    const cacheKey = `notes-${folderId}`;
+    try {
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) setNotes(JSON.parse(cached));
+    } catch {}
+    fetchNotes(folderId).then(data => {
+      if (data) {
+        setNotes(data);
+        localStorage.setItem(cacheKey, JSON.stringify(data));
+      }
+    });
   }, [folderId]);
+
+  const saveNotesCache = (updated) => {
+    try { localStorage.setItem(`notes-${folderId}`, JSON.stringify(updated)); } catch {}
+  };
 
   const handleCreate = async (data) => {
     setCreating(false);
@@ -208,12 +223,12 @@ export default function NotesView({ folderId }) {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
-    setNotes(prev => [...prev, tempNote]);
+    setNotes(prev => { const next = [...prev, tempNote]; saveNotesCache(next); return next; });
     const note = await createNoteApi({ ...data, folder_id: folderId });
     if (note) {
-      setNotes(prev => prev.map(n => n.id === tempId ? note : n));
+      setNotes(prev => { const next = prev.map(n => n.id === tempId ? note : n); saveNotesCache(next); return next; });
     } else {
-      setNotes(prev => prev.filter(n => n.id !== tempId));
+      setNotes(prev => { const next = prev.filter(n => n.id !== tempId); saveNotesCache(next); return next; });
     }
   };
 
@@ -223,7 +238,7 @@ export default function NotesView({ folderId }) {
   };
 
   const handleDelete = async (noteId) => {
-    setNotes(prev => prev.filter(n => n.id !== noteId));
+    setNotes(prev => { const next = prev.filter(n => n.id !== noteId); saveNotesCache(next); return next; });
     deleteNoteApi(noteId);
   };
 

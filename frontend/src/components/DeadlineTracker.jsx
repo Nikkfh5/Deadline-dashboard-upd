@@ -113,38 +113,31 @@ const DeadlineTracker = ({ foldersApi }) => {
   };
 
   useEffect(() => {
-    // Clear immediately to avoid showing stale data from another folder
-    setDeadlines([]);
+    // Read cache synchronously so there's no empty-screen flash when switching folders
+    let cachedDeadlines = [];
+    const saved = localStorage.getItem(lsKey);
+    if (saved) {
+      try { cachedDeadlines = JSON.parse(saved).map(migrateDeadline); } catch {}
+    } else if (!folderId) {
+      cachedDeadlines = mockDeadlines.map(migrateDeadline);
+    }
+
+    setDeadlines(cachedDeadlines);
     recentlyDeletedRef.current = new Set();
     setIsDeleteAllConfirming(false);
+    if (cachedDeadlines.length) initializeWithExisting(cachedDeadlines.map(d => d.id));
 
-    const loadDeadlines = async () => {
-      // Load folder-scoped cache first
-      const saved = localStorage.getItem(lsKey);
-      let localDeadlines = [];
-      if (saved) {
-        try { localDeadlines = JSON.parse(saved).map(migrateDeadline); } catch {}
-      } else if (!folderId) {
-        localDeadlines = mockDeadlines.map(migrateDeadline);
-      }
-      if (localDeadlines.length) {
-        setDeadlines(localDeadlines);
-        initializeWithExisting(localDeadlines.map(d => d.id));
-      }
-
-      // Fetch from server
-      if (hasToken()) {
-        const serverDeadlines = await fetchDeadlines(folderId);
-        if (serverDeadlines !== null) {
-          const normalized = serverDeadlines.map(normalizeServerDeadline);
-          const merged = mergeDeadlines(normalized, localDeadlines);
-          setDeadlines(merged);
-          initializeWithExisting(merged.map(d => d.id));
-          localStorage.setItem(lsKey, JSON.stringify(merged));
-        }
-      }
-    };
-    loadDeadlines();
+    // Fetch from server in background
+    if (hasToken()) {
+      fetchDeadlines(folderId).then(serverDeadlines => {
+        if (serverDeadlines === null) return;
+        const normalized = serverDeadlines.map(normalizeServerDeadline);
+        const merged = mergeDeadlines(normalized, cachedDeadlines);
+        setDeadlines(merged);
+        initializeWithExisting(merged.map(d => d.id));
+        localStorage.setItem(lsKey, JSON.stringify(merged));
+      });
+    }
   }, [folderId]); // lsKey derived from folderId, migrateDeadline/mockDeadlines are stable
 
   useEffect(() => {
