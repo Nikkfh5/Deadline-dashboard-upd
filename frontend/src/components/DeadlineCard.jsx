@@ -15,9 +15,10 @@ const truncateText = (text, maxLength = 25) => {
   return text.substring(0, maxLength) + '...';
 };
 
-const DeadlineCard = ({ deadline, timeLeft, progressColor, progressPercentage, isPulsing, onEdit, onDelete, onComplete, onRepeat, isRegularSection, isPlanningMode, onUpdateDaysNeeded, planningSubMode, onSelectForManual, isManualSelected, manualColorIndex, isNew, onMarkSeen }) => {
+const DeadlineCard = ({ deadline, timeLeft, progressColor, progressPercentage, isPulsing, onEdit, onDelete, onComplete, onToggleMarked, onRepeat, isRegularSection, isPlanningMode, onUpdateDaysNeeded, planningSubMode, onSelectForManual, isManualSelected, manualColorIndex, isNew, onMarkSeen }) => {
   const showRepeatButton = deadline.isRecurring && timeLeft.isOverdue;
   const isManualMode = isPlanningMode && planningSubMode === 'manual';
+  const isMarked = Boolean(deadline.isMarked);
 
   const handleClick = () => {
     if (isManualMode) {
@@ -40,7 +41,8 @@ const DeadlineCard = ({ deadline, timeLeft, progressColor, progressPercentage, i
         'relative p-6 bg-white dark:bg-slate-800 shadow-md hover:shadow-xl hover:ring-2 hover:ring-slate-300 dark:hover:ring-slate-600 hover:ring-offset-2 dark:hover:ring-offset-slate-900 transition-all duration-200 hover:scale-105 cursor-pointer border',
         isManualMode && isManualSelected ? manualSelectedRingColor
           : isPlanningMode ? 'border-blue-300 dark:border-blue-600 ring-1 ring-blue-200 dark:ring-blue-800'
-          : 'border-slate-200 dark:border-slate-700'
+          : 'border-slate-200 dark:border-slate-700',
+        isMarked && !isPlanningMode && 'bg-emerald-50/70 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-700'
       )}
       onClick={handleClick}
     >
@@ -91,6 +93,16 @@ const DeadlineCard = ({ deadline, timeLeft, progressColor, progressPercentage, i
           <DropdownMenuItem
             onClick={(e) => {
               e.stopPropagation();
+              onToggleMarked(deadline.id);
+            }}
+            className="cursor-pointer text-emerald-600 focus:text-emerald-600"
+          >
+            <CheckCircle2 className="w-4 h-4 mr-2" />
+            {isMarked ? 'Unmark' : 'Mark'}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={(e) => {
+              e.stopPropagation();
               onComplete(deadline.id);
             }}
             className="cursor-pointer text-green-600 focus:text-green-600"
@@ -113,7 +125,12 @@ const DeadlineCard = ({ deadline, timeLeft, progressColor, progressPercentage, i
       )}
 
       {/* Badge for deadline type */}
-      <div className="absolute -top-2 -left-2">
+      <div className="absolute -top-2 -left-2 flex flex-col items-start gap-1">
+        {isMarked && (
+          <Badge variant="outline" className="bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 text-xs px-2 py-1">
+            marked
+          </Badge>
+        )}
         {deadline.isRecurring && !timeLeft.isOverdue && (
           <Badge variant="outline" className="bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 text-xs px-2 py-1">
             every {deadline.intervalDays} days
@@ -138,21 +155,27 @@ const DeadlineCard = ({ deadline, timeLeft, progressColor, progressPercentage, i
       <div className="flex flex-col items-center space-y-4 mt-4">
         {/* Circular Progress */}
         <CircularProgress
-          percentage={progressPercentage}
-          color={progressColor}
-          isPulsing={isPulsing}
+          percentage={isMarked ? 100 : progressPercentage}
+          color={isMarked ? 'stroke-emerald-500' : progressColor}
+          isPulsing={isMarked ? false : isPulsing}
         >
-          <Clock className="w-6 h-6 text-slate-600 dark:text-slate-400 mb-1" />
+          {isMarked ? (
+            <CheckCircle2 className="w-6 h-6 text-emerald-600 dark:text-emerald-400 mb-1" />
+          ) : (
+            <Clock className="w-6 h-6 text-slate-600 dark:text-slate-400 mb-1" />
+          )}
           <div className="text-center">
             <div className="text-xs font-mono text-slate-700 dark:text-slate-300">
-              {timeLeft.isOverdue ? (
+              {isMarked ? (
+                <span className="text-emerald-600 dark:text-emerald-400 font-semibold">MARKED</span>
+              ) : timeLeft.isOverdue ? (
                 <span className="text-red-600 font-semibold">OVERDUE</span>
               ) : (
                 `${timeLeft.days}d ${timeLeft.hours}h`
               )}
             </div>
             <div className="text-xs font-mono text-slate-500 dark:text-slate-400">
-              {timeLeft.isOverdue ? '' : `${timeLeft.minutes}m ${timeLeft.seconds}s`}
+              {isMarked ? 'waiting' : timeLeft.isOverdue ? '' : `${timeLeft.minutes}m ${timeLeft.seconds}s`}
             </div>
           </div>
         </CircularProgress>

@@ -37,6 +37,11 @@ class TestDeadlineModels:
         assert "name" in dumped
         assert "task" not in dumped
 
+    def test_deadline_update_can_mark_deadline(self):
+        d = DeadlineUpdate(is_marked=True)
+        dumped = d.model_dump(exclude_unset=True)
+        assert dumped == {"is_marked": True}
+
     def test_deadline_full(self):
         d = Deadline(
             id="123",
@@ -48,6 +53,7 @@ class TestDeadlineModels:
         )
         assert d.id == "123"
         assert d.is_postponed is False
+        assert d.is_marked is False
 
 
 class TestUserModels:

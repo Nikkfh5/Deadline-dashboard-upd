@@ -22,7 +22,7 @@ class TestNormalizeChannel:
 
     def test_invite_link(self):
         result = _normalize_channel("+abc123")
-        assert result == "+abc123"
+        assert result == "invite:abc123"
 
     def test_whitespace(self):
         assert _normalize_channel("  @test  ") == "@test"

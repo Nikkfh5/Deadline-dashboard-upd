@@ -15,24 +15,10 @@ import { useSnapshots } from '../hooks/useSnapshots';
 import { useManualPlan } from '../hooks/useManualPlan';
 import { useSeenDeadlines } from '../hooks/useSeenDeadlines';
 import { useViewMode } from '../hooks/useViewMode';
+import { migrateDeadline, normalizeServerDeadline } from '../lib/deadline-normalization';
 import CanvasView from './CanvasView';
 import FolderTabs from './FolderTabs';
 import NotesView from './NotesView';
-
-// Normalize snake_case server response to camelCase frontend format
-const normalizeServerDeadline = (d) => ({
-  id: d.id,
-  name: d.name,
-  task: d.task,
-  dueDate: d.due_date,
-  createdAt: d.created_at,
-  updatedAt: d.updated_at,
-  isRecurring: d.is_recurring || false,
-  intervalDays: d.interval_days,
-  lastStartedAt: d.last_started_at || d.created_at,
-  daysNeeded: d.days_needed ?? null,
-  _fromServer: true,
-});
 
 // Merge server deadlines with local-only deadlines
 // Server is the source of truth — only keep local items that are very recent (< 10s old, likely just created)
@@ -94,23 +80,6 @@ const DeadlineTracker = ({ foldersApi }) => {
     document.documentElement.classList.toggle('dark', darkMode);
     localStorage.setItem('darkMode', darkMode);
   }, [darkMode]);
-
-  // Helper function to migrate old data structure to new format
-  const migrateDeadline = (deadline) => {
-    return {
-      id: deadline.id,
-      name: deadline.name,
-      task: deadline.task || '',
-      dueDate: deadline.dueDate,
-      createdAt: deadline.createdAt,
-      updatedAt: deadline.updatedAt,
-      // New fields with defaults for backward compatibility
-      isRecurring: deadline.isRecurring || false,
-      intervalDays: deadline.intervalDays,
-      lastStartedAt: deadline.lastStartedAt || deadline.createdAt,
-      daysNeeded: deadline.daysNeeded ?? null
-    };
-  };
 
   useEffect(() => {
     // Read cache synchronously so there's no empty-screen flash when switching folders
@@ -274,7 +243,8 @@ const DeadlineTracker = ({ foldersApi }) => {
       ...deadline,
       dueDate: newDueDate.toISOString(),
       lastStartedAt: now.toISOString(),
-      updatedAt: now.toISOString()
+      updatedAt: now.toISOString(),
+      isMarked: false
     };
 
     setDeadlines(prev => prev.map(d => d.id === deadline.id ? updatedDeadline : d));
@@ -283,6 +253,7 @@ const DeadlineTracker = ({ foldersApi }) => {
       updateDeadline(deadline.id, {
         due_date: newDueDate.toISOString(),
         last_started_at: now.toISOString(),
+        is_marked: false,
       }).then(refreshStats);
     }
   };
@@ -410,7 +381,8 @@ const DeadlineTracker = ({ foldersApi }) => {
         isRecurring: formData.isRecurring,
         intervalDays: formData.isRecurring ? getIntervalDays() : undefined,
         lastStartedAt: formData.isRecurring ? now.toISOString() : undefined,
-        daysNeeded: formData.daysNeeded ? parseInt(formData.daysNeeded) : null
+        daysNeeded: formData.daysNeeded ? parseInt(formData.daysNeeded) : null,
+        isMarked: false
       };
       setDeadlines(prev => [...prev, deadline]);
       markSeen(deadline.id);
@@ -424,6 +396,7 @@ const DeadlineTracker = ({ foldersApi }) => {
           interval_days: deadline.intervalDays,
           last_started_at: deadline.lastStartedAt,
           days_needed: deadline.daysNeeded,
+          is_marked: deadline.isMarked,
         }, folderId).then((serverDeadline) => {
           if (serverDeadline) {
             const normalized = normalizeServerDeadline(serverDeadline);
@@ -459,6 +432,18 @@ const DeadlineTracker = ({ foldersApi }) => {
     setDeadlines(prev => prev.filter(d => d.id !== id));
     if (hasToken()) {
       completeDeadlineApi(id).then(refreshStats);
+    }
+  };
+
+  const handleToggleMarked = (id) => {
+    const current = deadlines.find(d => d.id === id);
+    if (!current) return;
+
+    const isMarked = !current.isMarked;
+    const updatedAt = new Date().toISOString();
+    setDeadlines(prev => prev.map(d => d.id === id ? { ...d, isMarked, updatedAt } : d));
+    if (hasToken()) {
+      updateDeadline(id, { is_marked: isMarked }).then(refreshStats);
     }
   };
 
@@ -507,6 +492,7 @@ const DeadlineTracker = ({ foldersApi }) => {
         onEdit={openEditModal}
         onDelete={handleDeleteDeadline}
         onComplete={handleCompleteDeadline}
+        onToggleMarked={handleToggleMarked}
         onRepeat={handleRepeatDeadline}
         isRegularSection={isRegularSection}
         isPlanningMode={isPlanningMode}
@@ -779,13 +765,18 @@ const DeadlineTracker = ({ foldersApi }) => {
                   const timeLeft = calculateTimeLeft(deadline.dueDate);
                   const { progressColor } = getDeadlineMetrics(timeLeft, deadline);
                   const dueStr = new Date(deadline.dueDate).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
-                  const accentColor = timeLeft.isOverdue ? '#ef4444'
+                  const accentColor = deadline.isMarked ? '#10b981'
+                    : timeLeft.isOverdue ? '#ef4444'
                     : progressColor.includes('green') ? '#22c55e'
                     : progressColor.includes('yellow') ? '#eab308'
                     : '#ef4444';
                   return (
                     <div
-                      className="w-52 bg-white dark:bg-slate-800 rounded-xl shadow-md border border-slate-100 dark:border-slate-700 overflow-hidden select-none"
+                      className={`w-52 rounded-xl shadow-md border overflow-hidden select-none ${
+                        deadline.isMarked
+                          ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800'
+                          : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700'
+                      }`}
                       style={{ borderLeft: `4px solid ${accentColor}` }}
                     >
                       <div className="px-3 pt-3 pb-2">
@@ -797,9 +788,21 @@ const DeadlineTracker = ({ foldersApi }) => {
                           className="text-xs font-semibold px-1.5 py-0.5 rounded"
                           style={{ color: accentColor, background: `${accentColor}18` }}
                         >
-                          {timeLeft.isOverdue ? 'overdue' : dueStr}
+                          {deadline.isMarked ? 'marked' : timeLeft.isOverdue ? 'overdue' : dueStr}
                         </span>
                         <div className="flex items-center gap-1.5">
+                          <button
+                            onPointerDown={e => e.stopPropagation()}
+                            onClick={e => { e.stopPropagation(); handleToggleMarked(deadline.id); }}
+                            className={`transition-colors ${
+                              deadline.isMarked
+                                ? 'text-emerald-500 dark:text-emerald-400 hover:text-slate-400 dark:hover:text-slate-500'
+                                : 'text-slate-300 dark:text-slate-600 hover:text-emerald-500 dark:hover:text-emerald-400'
+                            }`}
+                            title={deadline.isMarked ? 'Unmark' : 'Mark'}
+                          >
+                            <CheckCircle2 className="w-4 h-4" />
+                          </button>
                           <button
                             onPointerDown={e => e.stopPropagation()}
                             onClick={e => { e.stopPropagation(); handleDeleteDeadline(deadline.id); }}

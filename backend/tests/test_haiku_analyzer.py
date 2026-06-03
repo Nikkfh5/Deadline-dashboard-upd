@@ -32,6 +32,11 @@ class TestPromptTemplates:
             post_text="ДЗ 3 до 28.09",
             channel_name="@test_channel",
             current_year="2025/2026",
+            today="2026-06-03",
+            weekday="Wednesday",
+            description_block="",
+            subjects_block="",
+            context_block="",
         )
         assert "ДЗ 3 до 28.09" in result
         assert "@test_channel" in result
