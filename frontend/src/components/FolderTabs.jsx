@@ -160,7 +160,7 @@ function NewFolderForm({ onSubmit, onCancel }) {
         ref={inputRef}
         value={name}
         onChange={e => setName(e.target.value)}
-        placeholder="Название..."
+        placeholder="Name..."
         onKeyDown={e => {
           if (e.key === 'Enter') submit();
           if (e.key === 'Escape') onCancel();
@@ -215,7 +215,7 @@ export default function FolderTabs({ folders, activeFolderId, onSwitch, onCreate
         <button
           onClick={() => setCreatingNew(true)}
           className="flex items-center justify-center w-7 h-7 mb-0.5 rounded-md text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex-shrink-0"
-          title="Новая папка"
+          title="New folder"
         >
           <Plus className="w-4 h-4" />
         </button>

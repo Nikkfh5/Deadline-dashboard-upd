@@ -75,10 +75,10 @@ export default function CanvasView({ items, renderCard, getPositions, savePositi
         <button
           onClick={handleReset}
           className="flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
-          title="Сбросить позиции"
+          title="Reset positions"
         >
           <RotateCcw className="w-3 h-3" />
-          Сбросить раскладку
+          Reset layout
         </button>
       </div>
       <DndContext onDragEnd={handleDragEnd}>

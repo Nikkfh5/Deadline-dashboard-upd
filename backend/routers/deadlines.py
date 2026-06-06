@@ -123,6 +123,22 @@ async def delete_all_deadlines(token: str = Query(...), folder_id: str = Query(N
     return {"deleted": result.deleted_count}
 
 
+@router.delete("/expired")
+async def delete_expired_deadlines(token: str = Query(...), folder_id: str = Query(None)):
+    user = await get_user_by_token(token)
+    db = get_db()
+    user_id = str(user["_id"])
+
+    if folder_id:
+        query = await _build_folder_query(db, user_id, folder_id)
+    else:
+        query = {"user_id": user_id}
+
+    query["due_date"] = {"$lt": datetime.utcnow()}
+    result = await db.deadlines.delete_many(query)
+    return {"deleted": result.deleted_count}
+
+
 @router.delete("/{deadline_id}")
 async def delete_deadline(
     deadline_id: str,

@@ -196,7 +196,7 @@ const DeadlineCard = ({ deadline, timeLeft, progressColor, progressPercentage, i
             </Tooltip>
           )}
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            {new Date(deadline.dueDate).toLocaleDateString('ru-RU', {
+            {new Date(deadline.dueDate).toLocaleDateString('en-GB', {
               timeZone: 'Europe/Moscow',
               month: 'short',
               day: 'numeric',

@@ -119,6 +119,21 @@ export async function deleteAllDeadlinesApi(folderId) {
   }
 }
 
+export async function deleteExpiredDeadlinesApi(folderId) {
+  const token = getToken();
+  if (!token) return false;
+
+  try {
+    const params = { token };
+    if (folderId) params.folder_id = folderId;
+    await api.delete('/deadlines/expired', { params });
+    return true;
+  } catch (error) {
+    console.error('Failed to delete expired deadlines:', error);
+    return false;
+  }
+}
+
 // Folders API
 export async function fetchFolders() {
   const token = getToken();

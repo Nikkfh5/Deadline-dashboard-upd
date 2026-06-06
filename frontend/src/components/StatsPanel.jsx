@@ -25,35 +25,35 @@ const StatsPanel = ({ refreshKey = 0 }) => {
     <div className="mt-10 mb-8">
       <h2 className="text-xl font-semibold text-slate-700 dark:text-slate-200 mb-4 flex items-center gap-2">
         <BarChart3 className="w-5 h-5" />
-        Статистика
+        Statistics
       </h2>
 
       {/* Counters */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <Card className="p-4 text-center bg-white dark:bg-slate-800">
           <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">{stats.total}</div>
-          <div className="text-sm text-slate-500 dark:text-slate-400">Всего</div>
+          <div className="text-sm text-slate-500 dark:text-slate-400">Total</div>
         </Card>
         <Card className="p-4 text-center bg-white dark:bg-slate-800">
           <div className="text-2xl font-bold text-blue-600 flex items-center justify-center gap-1">
             <TrendingUp className="w-5 h-5" />
             {stats.upcoming}
           </div>
-          <div className="text-sm text-slate-500 dark:text-slate-400">Предстоящих</div>
+          <div className="text-sm text-slate-500 dark:text-slate-400">Upcoming</div>
         </Card>
         <Card className="p-4 text-center bg-white dark:bg-slate-800">
           <div className="text-2xl font-bold text-red-500 flex items-center justify-center gap-1">
             <AlertTriangle className="w-5 h-5" />
             {stats.overdue}
           </div>
-          <div className="text-sm text-slate-500 dark:text-slate-400">Просрочено</div>
+          <div className="text-sm text-slate-500 dark:text-slate-400">Overdue</div>
         </Card>
         <Card className="p-4 text-center bg-white dark:bg-slate-800">
           <div className="text-2xl font-bold text-green-500 flex items-center justify-center gap-1">
             <CheckCircle2 className="w-5 h-5" />
             {stats.completed_this_week || 0}
           </div>
-          <div className="text-sm text-slate-500 dark:text-slate-400">Выполнено за неделю</div>
+          <div className="text-sm text-slate-500 dark:text-slate-400">Done this week</div>
         </Card>
       </div>
 
@@ -61,10 +61,10 @@ const StatsPanel = ({ refreshKey = 0 }) => {
       {(stats.completed_this_week || 0) > 0 && (
         <div className="mb-6 text-center">
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            {stats.completed_this_week >= 10 ? 'Невероятная продуктивность!' :
-             stats.completed_this_week >= 5 ? 'Отличная работа, так держать!' :
-             stats.completed_this_week >= 3 ? 'Хороший темп!' :
-             'Начало положено!'}
+            {stats.completed_this_week >= 10 ? 'Huge productivity week.' :
+             stats.completed_this_week >= 5 ? 'Strong pace. Keep it up.' :
+             stats.completed_this_week >= 3 ? 'Good tempo.' :
+             'Momentum started.'}
           </p>
         </div>
       )}
@@ -73,7 +73,7 @@ const StatsPanel = ({ refreshKey = 0 }) => {
       <Card className="p-4 bg-white dark:bg-slate-800 mb-4">
         <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-3 flex items-center gap-1">
           <Calendar className="w-4 h-4" />
-          Ближайшая неделя
+          Next week
         </h3>
         <div className="space-y-2">
           {stats.week.map((d, i) => (
@@ -98,8 +98,8 @@ const StatsPanel = ({ refreshKey = 0 }) => {
           <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700 flex items-center gap-3">
             <Flame className="w-5 h-5 text-orange-500" />
             <span className="text-base text-slate-500 dark:text-slate-400">
-              Самый загруженный день: <span className="font-bold text-orange-500">{stats.busiest_day}</span>
-              <span className="text-slate-500 dark:text-slate-400"> ({stats.busiest_count} дедл.)</span>
+              Busiest day: <span className="font-bold text-orange-500">{stats.busiest_day}</span>
+              <span className="text-slate-500 dark:text-slate-400"> ({stats.busiest_count} deadlines)</span>
             </span>
           </div>
         )}

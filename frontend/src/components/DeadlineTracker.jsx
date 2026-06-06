@@ -1,10 +1,16 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Clock, Plus, Moon, Sun, ChevronDown, ChevronUp, Calendar as CalendarIcon, LayoutGrid, Trash2, X, CheckCircle2, List } from 'lucide-react';
+import { Clock, Plus, Moon, Sun, ChevronDown, ChevronUp, Calendar as CalendarIcon, LayoutGrid, Trash2, CheckCircle2, List, TimerOff } from 'lucide-react';
 import { Button } from './ui/button';
 import { TooltipProvider } from './ui/tooltip';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from './ui/dropdown-menu';
 import { mockDeadlines } from '../mock';
-import { fetchDeadlines, createDeadline, updateDeadline, deleteDeadlineApi, completeDeadlineApi, deleteAllDeadlinesApi, hasToken } from '../services/api';
+import { fetchDeadlines, createDeadline, updateDeadline, deleteDeadlineApi, completeDeadlineApi, deleteAllDeadlinesApi, deleteExpiredDeadlinesApi, hasToken } from '../services/api';
 import StatsPanel from './StatsPanel';
 import DeadlineCard from './DeadlineCard';
 import DeadlineModal from './DeadlineModal';
@@ -65,7 +71,7 @@ const DeadlineTracker = ({ foldersApi }) => {
 
   const [statsKey, setStatsKey] = useState(0);
   const refreshStats = () => setStatsKey(k => k + 1);
-  const [isDeleteAllConfirming, setIsDeleteAllConfirming] = useState(false);
+  const [isDeleteMenuOpen, setIsDeleteMenuOpen] = useState(false);
   const { viewMode, setViewMode, getPositions, savePosition, resetPositions } = useViewMode(folderId);
   const [showTemporaryInCanvas, setShowTemporaryInCanvas] = useState(false);
   const doSyncRef = useRef(null);
@@ -93,7 +99,7 @@ const DeadlineTracker = ({ foldersApi }) => {
 
     setDeadlines(cachedDeadlines);
     recentlyDeletedRef.current = new Set();
-    setIsDeleteAllConfirming(false);
+    setIsDeleteMenuOpen(false);
     if (cachedDeadlines.length) initializeWithExisting(cachedDeadlines.map(d => d.id));
 
     // Fetch from server in background
@@ -435,6 +441,8 @@ const DeadlineTracker = ({ foldersApi }) => {
     }
   };
 
+  const isDeadlineExpired = (deadline) => new Date(deadline.dueDate).getTime() <= currentTime.getTime();
+
   const handleToggleMarked = (id) => {
     const current = deadlines.find(d => d.id === id);
     if (!current) return;
@@ -454,11 +462,35 @@ const DeadlineTracker = ({ foldersApi }) => {
       setTimeout(() => recentlyDeletedRef.current.delete(id), 30000);
     });
     setDeadlines([]);
+    localStorage.setItem(lsKey, JSON.stringify([]));
     clearAllManual();
     setManualActiveDeadlineId(null);
-    setIsDeleteAllConfirming(false);
+    setIsDeleteMenuOpen(false);
     if (hasToken()) {
       await deleteAllDeadlinesApi(folderId);
+      refreshStats();
+    }
+  };
+
+  const handleDeleteExpired = async () => {
+    const expiredIds = deadlines.filter(isDeadlineExpired).map(d => d.id);
+    if (!expiredIds.length) return;
+
+    expiredIds.forEach(id => {
+      recentlyDeletedRef.current.add(id);
+      setTimeout(() => recentlyDeletedRef.current.delete(id), 30000);
+      clearDeadline(id);
+    });
+
+    setDeadlines(prev => {
+      const remaining = prev.filter(d => !expiredIds.includes(d.id));
+      localStorage.setItem(lsKey, JSON.stringify(remaining));
+      return remaining;
+    });
+    if (expiredIds.includes(manualActiveDeadlineId)) setManualActiveDeadlineId(null);
+    setIsDeleteMenuOpen(false);
+    if (hasToken()) {
+      await deleteExpiredDeadlinesApi(folderId);
       refreshStats();
     }
   };
@@ -518,49 +550,54 @@ const DeadlineTracker = ({ foldersApi }) => {
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 p-6 transition-colors">
         <div className="max-w-7xl mx-auto">
           {/* Header */}
-          <div className="flex justify-between items-center mb-12">
-            <div className="flex-1" />
+          <div className={`flex items-center gap-3 ${isDeleteMenuOpen ? 'mb-36 sm:mb-12' : 'mb-12'}`}>
+            <div className="w-[4.5rem] shrink-0" />
 
-            <h1 className="text-4xl font-bold text-slate-800 dark:text-slate-100 tracking-wide">DEADLINES</h1>
+            <h1 className="min-w-0 flex-1 text-center text-3xl sm:text-4xl font-bold text-slate-800 dark:text-slate-100 tracking-wide">DEADLINES</h1>
 
-            <div className="flex-1 flex justify-end items-center gap-1">
-              {!isDeleteAllConfirming ? (
-                <button
-                  onClick={() => deadlines.length > 0 && setIsDeleteAllConfirming(true)}
-                  disabled={deadlines.length === 0}
-                  title="Удалить все дедлайны"
-                  className={`
-                    flex items-center justify-center w-8 h-8 rounded-lg
-                    transition-all duration-200
-                    ${deadlines.length === 0
-                      ? 'text-slate-300 dark:text-slate-700 cursor-not-allowed'
-                      : 'text-slate-400 dark:text-slate-500 hover:text-rose-500 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 cursor-pointer'
-                    }
-                  `}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              ) : (
-                <div className="flex items-center gap-1 animate-confirm-appear">
-                  <button
-                    onClick={() => setIsDeleteAllConfirming(false)}
-                    className="flex items-center gap-1 px-2 py-1 rounded-md text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                  >
-                    <X className="w-3 h-3" />
-                    <span>отмена</span>
-                  </button>
-                  <button
-                    onClick={handleDeleteAll}
-                    className="px-2.5 py-1 rounded-md text-xs font-medium
-                               text-rose-600 dark:text-rose-400
-                               border border-rose-200 dark:border-rose-800
-                               hover:bg-rose-50 dark:hover:bg-rose-950/40
-                               transition-colors"
-                  >
-                    удалить все
-                  </button>
+            <div className="w-[4.5rem] shrink-0 flex justify-end items-center gap-1">
+              <DropdownMenu open={isDeleteMenuOpen} onOpenChange={setIsDeleteMenuOpen}>
+                <div onMouseEnter={() => deadlines.length > 0 && setIsDeleteMenuOpen(true)}>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      disabled={deadlines.length === 0}
+                      title="Delete deadlines"
+                      className={`
+                        flex items-center justify-center w-8 h-8 rounded-lg
+                        transition-all duration-200
+                        ${deadlines.length === 0
+                          ? 'text-slate-300 dark:text-slate-700 cursor-not-allowed'
+                          : 'text-slate-400 dark:text-slate-500 hover:text-rose-500 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 cursor-pointer'
+                        }
+                      `}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </DropdownMenuTrigger>
                 </div>
-              )}
+                <DropdownMenuContent
+                  align="end"
+                  sideOffset={8}
+                  onMouseLeave={() => setIsDeleteMenuOpen(false)}
+                  className="w-44 border-slate-200 bg-white text-slate-700 shadow-lg dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                >
+                  <DropdownMenuItem
+                    onSelect={handleDeleteExpired}
+                    disabled={!deadlines.some(isDeadlineExpired)}
+                    className="cursor-pointer text-xs text-slate-600 focus:bg-slate-100 focus:text-slate-900 dark:text-slate-300 dark:focus:bg-slate-800 dark:focus:text-slate-100"
+                  >
+                    <TimerOff className="w-4 h-4" />
+                    Delete expired
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={handleDeleteAll}
+                    className="cursor-pointer text-xs text-rose-600 focus:bg-rose-50 focus:text-rose-700 dark:text-rose-400 dark:focus:bg-rose-950/40 dark:focus:text-rose-300"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete all
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button
                 variant="ghost"
                 size="icon"
@@ -603,7 +640,7 @@ const DeadlineTracker = ({ foldersApi }) => {
                 }`}
               >
                 <List className="w-3.5 h-3.5" />
-                Список
+                List
               </button>
               <button
                 onClick={() => setViewMode('canvas')}
@@ -614,7 +651,7 @@ const DeadlineTracker = ({ foldersApi }) => {
                 }`}
               >
                 <LayoutGrid className="w-3.5 h-3.5" />
-                Холст
+                Canvas
               </button>
             </div>
 
@@ -764,7 +801,7 @@ const DeadlineTracker = ({ foldersApi }) => {
                 renderCard={(deadline) => {
                   const timeLeft = calculateTimeLeft(deadline.dueDate);
                   const { progressColor } = getDeadlineMetrics(timeLeft, deadline);
-                  const dueStr = new Date(deadline.dueDate).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+                  const dueStr = new Date(deadline.dueDate).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit' });
                   const accentColor = deadline.isMarked ? '#10b981'
                     : timeLeft.isOverdue ? '#ef4444'
                     : progressColor.includes('green') ? '#22c55e'
