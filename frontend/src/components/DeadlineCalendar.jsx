@@ -154,20 +154,14 @@ const DeadlineCalendar = ({ deadlines, isPlanningMode, planningSubMode, manualPl
               <div className="space-y-1">
                 {isDueDate && (
                   <div className={cn(
-                    'text-xs font-semibold',
-                    hasImportantDueDate ? 'text-rose-600 dark:text-rose-300' : 'text-red-600 dark:text-red-400'
+                    hasImportantDueDate ? 'text-sm font-black tracking-wide text-rose-600 dark:text-rose-300' : 'text-xs font-semibold text-red-600 dark:text-red-400'
                   )}>
-                    {hasImportantDueDate ? 'Important deadline day' : 'Deadline day'}
-                    {dueDeadlines.length > 0 && (
+                    {hasImportantDueDate ? '!!' : 'Deadline day'}
+                    {!hasImportantDueDate && dueDeadlines.length > 0 && (
                       <span className="font-normal text-slate-500 dark:text-slate-400 ml-1 inline-flex flex-wrap items-center gap-1">
                         {dueDeadlines.map((d) => (
                           <span key={d.id} className="inline-flex items-center gap-1">
                             <span>{d.name}</span>
-                            {isImportantDeadline(d) && (
-                              <span className="rounded px-1 text-[9px] font-semibold uppercase tracking-wide bg-rose-100 text-rose-600 dark:bg-rose-950/50 dark:text-rose-300">
-                                ! Important
-                              </span>
-                            )}
                           </span>
                         ))}
                       </span>
@@ -185,11 +179,6 @@ const DeadlineCalendar = ({ deadlines, isPlanningMode, planningSubMode, manualPl
                       <span className="text-slate-700 dark:text-slate-300 font-medium">
                         {deadline.name}
                       </span>
-                      {isImportantDeadline(deadline) && (
-                        <span className="rounded px-1 text-[9px] font-semibold uppercase tracking-wide bg-rose-100 text-rose-600 dark:bg-rose-950/50 dark:text-rose-300">
-                          ! Important
-                        </span>
-                      )}
                       <span className="text-slate-500 dark:text-slate-400">
                         {isManual ? `${manualPlan[sourceId]?.days?.length || 0}d manual` : `${deadline.daysNeeded}d`}
                       </span>
