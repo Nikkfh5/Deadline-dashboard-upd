@@ -10,12 +10,14 @@ describe('deadline normalization', () => {
       created_at: '2026-06-01T10:00:00Z',
       updated_at: '2026-06-02T10:00:00Z',
       is_marked: true,
+      is_important: true,
     });
 
     expect(normalized.isMarked).toBe(true);
+    expect(normalized.isImportant).toBe(true);
   });
 
-  test('migrates old cached deadlines as unmarked by default', () => {
+  test('migrates old cached deadlines with safe status defaults', () => {
     const migrated = migrateDeadline({
       id: 'local-1',
       name: 'Course',
@@ -26,5 +28,6 @@ describe('deadline normalization', () => {
     });
 
     expect(migrated.isMarked).toBe(false);
+    expect(migrated.isImportant).toBe(false);
   });
 });

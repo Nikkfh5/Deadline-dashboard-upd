@@ -10,6 +10,7 @@ export const normalizeServerDeadline = (d) => ({
   lastStartedAt: d.last_started_at || d.created_at,
   daysNeeded: d.days_needed ?? null,
   isMarked: d.is_marked || false,
+  isImportant: d.is_important || false,
   _fromServer: true,
 });
 
@@ -25,5 +26,6 @@ export const migrateDeadline = (deadline) => ({
   lastStartedAt: deadline.lastStartedAt || deadline.createdAt,
   daysNeeded: deadline.daysNeeded ?? null,
   isMarked: deadline.isMarked || deadline.is_marked || false,
+  isImportant: deadline.isImportant || deadline.is_important || false,
   _fromServer: deadline._fromServer || false,
 });

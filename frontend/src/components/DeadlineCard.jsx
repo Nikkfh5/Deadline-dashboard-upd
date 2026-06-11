@@ -1,5 +1,5 @@
 import React from 'react';
-import { Clock, X, Edit3, MoreVertical, Repeat, CheckCircle2 } from 'lucide-react';
+import { Clock, X, Edit3, MoreVertical, Repeat, CheckCircle2, Flag } from 'lucide-react';
 import { Button } from './ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './ui/dropdown-menu';
@@ -15,10 +15,12 @@ const truncateText = (text, maxLength = 25) => {
   return text.substring(0, maxLength) + '...';
 };
 
-const DeadlineCard = ({ deadline, timeLeft, progressColor, progressPercentage, isPulsing, onEdit, onDelete, onComplete, onToggleMarked, onRepeat, isRegularSection, isPlanningMode, onUpdateDaysNeeded, planningSubMode, onSelectForManual, isManualSelected, manualColorIndex, isNew, onMarkSeen }) => {
+const DeadlineCard = ({ deadline, timeLeft, progressColor, progressPercentage, isPulsing, onEdit, onDelete, onComplete, onToggleMarked, onToggleImportant, onRepeat, isRegularSection, isPlanningMode, onUpdateDaysNeeded, planningSubMode, onSelectForManual, isManualSelected, manualColorIndex, isNew, onMarkSeen }) => {
   const showRepeatButton = deadline.isRecurring && timeLeft.isOverdue;
   const isManualMode = isPlanningMode && planningSubMode === 'manual';
   const isMarked = Boolean(deadline.isMarked);
+  const isImportant = Boolean(deadline.isImportant);
+  const showImportant = isImportant && !isMarked;
 
   const handleClick = () => {
     if (isManualMode) {
@@ -42,10 +44,18 @@ const DeadlineCard = ({ deadline, timeLeft, progressColor, progressPercentage, i
         isManualMode && isManualSelected ? manualSelectedRingColor
           : isPlanningMode ? 'border-blue-300 dark:border-blue-600 ring-1 ring-blue-200 dark:ring-blue-800'
           : 'border-slate-200 dark:border-slate-700',
+        showImportant && !isPlanningMode && 'border-rose-400/70 dark:border-rose-700/80 shadow-rose-950/10 dark:shadow-rose-950/20',
         isMarked && !isPlanningMode && 'bg-emerald-50/70 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-700'
       )}
       onClick={handleClick}
     >
+      {showImportant && !isPlanningMode && (
+        <>
+          <div className="absolute left-5 right-5 top-0 h-1 rounded-b-full bg-rose-500/80 dark:bg-rose-400/80" />
+          <Flag className="absolute left-3 top-3 w-4 h-4 text-rose-500/80 dark:text-rose-400/80" />
+        </>
+      )}
+
       {/* Planning mode input / manual indicator / 3-dot menu */}
       {isManualMode ? (
         manualColorIndex != null && (
@@ -67,7 +77,7 @@ const DeadlineCard = ({ deadline, timeLeft, progressColor, progressPercentage, i
             <MoreVertical className="w-3 h-3" />
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-32">
+        <DropdownMenuContent align="end" className="w-36">
           <DropdownMenuItem
             onClick={(e) => {
               e.stopPropagation();
@@ -90,6 +100,16 @@ const DeadlineCard = ({ deadline, timeLeft, progressColor, progressPercentage, i
               Repeat
             </DropdownMenuItem>
           )}
+          <DropdownMenuItem
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleImportant(deadline.id);
+            }}
+            className="cursor-pointer text-rose-600 focus:text-rose-600"
+          >
+            <Flag className="w-4 h-4 mr-2" />
+            {isImportant ? 'Unimportant' : 'Important'}
+          </DropdownMenuItem>
           <DropdownMenuItem
             onClick={(e) => {
               e.stopPropagation();
@@ -182,7 +202,10 @@ const DeadlineCard = ({ deadline, timeLeft, progressColor, progressPercentage, i
 
         {/* Name and Task */}
         <div className="text-center">
-          <h3 className="font-semibold text-slate-800 dark:text-slate-100 text-lg">{deadline.name}</h3>
+          <h3 className={cn(
+            'font-semibold text-lg',
+            showImportant ? 'text-rose-600 dark:text-rose-300' : 'text-slate-800 dark:text-slate-100'
+          )}>{deadline.name}</h3>
           {deadline.task && (
             <Tooltip>
               <TooltipTrigger asChild>

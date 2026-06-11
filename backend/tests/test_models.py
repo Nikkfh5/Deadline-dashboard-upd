@@ -20,6 +20,7 @@ class TestDeadlineModels:
         )
         assert d.name == "Матан"
         assert d.is_recurring is False
+        assert d.is_important is False
         assert d.source.type == "manual"
 
     def test_deadline_create_with_source(self):
@@ -42,6 +43,11 @@ class TestDeadlineModels:
         dumped = d.model_dump(exclude_unset=True)
         assert dumped == {"is_marked": True}
 
+    def test_deadline_update_can_mark_important(self):
+        d = DeadlineUpdate(is_important=True)
+        dumped = d.model_dump(exclude_unset=True)
+        assert dumped == {"is_important": True}
+
     def test_deadline_full(self):
         d = Deadline(
             id="123",
@@ -54,6 +60,7 @@ class TestDeadlineModels:
         assert d.id == "123"
         assert d.is_postponed is False
         assert d.is_marked is False
+        assert d.is_important is False
 
 
 class TestUserModels:

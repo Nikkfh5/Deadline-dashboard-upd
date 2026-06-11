@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Clock, Plus, Moon, Sun, ChevronDown, ChevronUp, Calendar as CalendarIcon, LayoutGrid, Trash2, CheckCircle2, List, TimerOff } from 'lucide-react';
+import { Clock, Plus, Moon, Sun, ChevronDown, ChevronUp, Calendar as CalendarIcon, LayoutGrid, Trash2, CheckCircle2, List, TimerOff, Flag } from 'lucide-react';
 import { Button } from './ui/button';
 import { TooltipProvider } from './ui/tooltip';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
@@ -51,7 +51,8 @@ const DeadlineTracker = ({ foldersApi }) => {
     isRecurring: false,
     intervalDays: '7',
     customDays: '',
-    daysNeeded: ''
+    daysNeeded: '',
+    isImportant: false
   });
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isTemporaryCollapsed, setIsTemporaryCollapsed] = useState(true);
@@ -296,7 +297,8 @@ const DeadlineTracker = ({ foldersApi }) => {
       isRecurring: false,
       intervalDays: '7',
       customDays: '',
-      daysNeeded: ''
+      daysNeeded: '',
+      isImportant: false
     });
     setIsModalOpen(true);
   };
@@ -311,7 +313,8 @@ const DeadlineTracker = ({ foldersApi }) => {
       isRecurring: deadline.isRecurring || false,
       intervalDays: deadline.intervalDays ? deadline.intervalDays.toString() : '7',
       customDays: '',
-      daysNeeded: deadline.daysNeeded ? deadline.daysNeeded.toString() : ''
+      daysNeeded: deadline.daysNeeded ? deadline.daysNeeded.toString() : '',
+      isImportant: Boolean(deadline.isImportant)
     });
     setIsModalOpen(true);
   };
@@ -360,7 +363,8 @@ const DeadlineTracker = ({ foldersApi }) => {
         isRecurring: formData.isRecurring,
         intervalDays: formData.isRecurring ? currentInterval : undefined,
         lastStartedAt: newLastStartedAt,
-        daysNeeded: formData.daysNeeded ? parseInt(formData.daysNeeded) : null
+        daysNeeded: formData.daysNeeded ? parseInt(formData.daysNeeded) : null,
+        isImportant: Boolean(formData.isImportant)
       };
       setDeadlines(prev => prev.map(d => d.id === editingDeadline.id ? updatedDeadline : d));
       // Sync update to backend
@@ -373,6 +377,7 @@ const DeadlineTracker = ({ foldersApi }) => {
           interval_days: updatedDeadline.intervalDays,
           last_started_at: updatedDeadline.lastStartedAt,
           days_needed: updatedDeadline.daysNeeded,
+          is_important: updatedDeadline.isImportant,
         }).then(refreshStats);
       }
     } else {
@@ -388,7 +393,8 @@ const DeadlineTracker = ({ foldersApi }) => {
         intervalDays: formData.isRecurring ? getIntervalDays() : undefined,
         lastStartedAt: formData.isRecurring ? now.toISOString() : undefined,
         daysNeeded: formData.daysNeeded ? parseInt(formData.daysNeeded) : null,
-        isMarked: false
+        isMarked: false,
+        isImportant: Boolean(formData.isImportant)
       };
       setDeadlines(prev => [...prev, deadline]);
       markSeen(deadline.id);
@@ -403,6 +409,7 @@ const DeadlineTracker = ({ foldersApi }) => {
           last_started_at: deadline.lastStartedAt,
           days_needed: deadline.daysNeeded,
           is_marked: deadline.isMarked,
+          is_important: deadline.isImportant,
         }, folderId).then((serverDeadline) => {
           if (serverDeadline) {
             const normalized = normalizeServerDeadline(serverDeadline);
@@ -416,7 +423,7 @@ const DeadlineTracker = ({ foldersApi }) => {
       }
     }
 
-    setFormData({ name: '', task: '', dueDate: '', isRecurring: false, intervalDays: '7', customDays: '', daysNeeded: '' });
+    setFormData({ name: '', task: '', dueDate: '', isRecurring: false, intervalDays: '7', customDays: '', daysNeeded: '', isImportant: false });
     setEditingDeadline(null);
     setIsModalOpen(false);
   };
@@ -452,6 +459,18 @@ const DeadlineTracker = ({ foldersApi }) => {
     setDeadlines(prev => prev.map(d => d.id === id ? { ...d, isMarked, updatedAt } : d));
     if (hasToken()) {
       updateDeadline(id, { is_marked: isMarked }).then(refreshStats);
+    }
+  };
+
+  const handleToggleImportant = (id) => {
+    const current = deadlines.find(d => d.id === id);
+    if (!current) return;
+
+    const isImportant = !current.isImportant;
+    const updatedAt = new Date().toISOString();
+    setDeadlines(prev => prev.map(d => d.id === id ? { ...d, isImportant, updatedAt } : d));
+    if (hasToken()) {
+      updateDeadline(id, { is_important: isImportant }).then(refreshStats);
     }
   };
 
@@ -525,6 +544,7 @@ const DeadlineTracker = ({ foldersApi }) => {
         onDelete={handleDeleteDeadline}
         onComplete={handleCompleteDeadline}
         onToggleMarked={handleToggleMarked}
+        onToggleImportant={handleToggleImportant}
         onRepeat={handleRepeatDeadline}
         isRegularSection={isRegularSection}
         isPlanningMode={isPlanningMode}
@@ -803,21 +823,27 @@ const DeadlineTracker = ({ foldersApi }) => {
                   const { progressColor } = getDeadlineMetrics(timeLeft, deadline);
                   const dueStr = new Date(deadline.dueDate).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit' });
                   const accentColor = deadline.isMarked ? '#10b981'
+                    : deadline.isImportant ? '#e11d48'
                     : timeLeft.isOverdue ? '#ef4444'
                     : progressColor.includes('green') ? '#22c55e'
                     : progressColor.includes('yellow') ? '#eab308'
                     : '#ef4444';
+                  const titleClass = deadline.isImportant && !deadline.isMarked
+                    ? 'text-rose-600 dark:text-rose-300'
+                    : 'text-slate-800 dark:text-slate-100';
                   return (
                     <div
                       className={`w-52 rounded-xl shadow-md border overflow-hidden select-none ${
                         deadline.isMarked
                           ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800'
+                          : deadline.isImportant
+                            ? 'bg-white dark:bg-slate-800 border-rose-200 dark:border-rose-800'
                           : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700'
                       }`}
                       style={{ borderLeft: `4px solid ${accentColor}` }}
                     >
                       <div className="px-3 pt-3 pb-2">
-                        <p className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate leading-tight">{deadline.name}</p>
+                        <p className={`text-sm font-bold truncate leading-tight ${titleClass}`}>{deadline.name}</p>
                         <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">{deadline.task}</p>
                       </div>
                       <div className="flex items-center justify-between px-3 pb-2.5">
@@ -828,6 +854,18 @@ const DeadlineTracker = ({ foldersApi }) => {
                           {deadline.isMarked ? 'marked' : timeLeft.isOverdue ? 'overdue' : dueStr}
                         </span>
                         <div className="flex items-center gap-1.5">
+                          <button
+                            onPointerDown={e => e.stopPropagation()}
+                            onClick={e => { e.stopPropagation(); handleToggleImportant(deadline.id); }}
+                            className={`transition-colors ${
+                              deadline.isImportant
+                                ? 'text-rose-500 dark:text-rose-400 hover:text-slate-400 dark:hover:text-slate-500'
+                                : 'text-slate-300 dark:text-slate-600 hover:text-rose-500 dark:hover:text-rose-400'
+                            }`}
+                            title={deadline.isImportant ? 'Unimportant' : 'Important'}
+                          >
+                            <Flag className="w-4 h-4" />
+                          </button>
                           <button
                             onPointerDown={e => e.stopPropagation()}
                             onClick={e => { e.stopPropagation(); handleToggleMarked(deadline.id); }}

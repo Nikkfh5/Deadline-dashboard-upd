@@ -24,6 +24,7 @@ class DeadlineCreate(BaseModel):
     last_started_at: Optional[datetime] = None
     days_needed: Optional[int] = Field(default=None, ge=1)
     is_marked: bool = False
+    is_important: bool = False
     source: DeadlineSource = DeadlineSource()
     folder_id: Optional[str] = None
 
@@ -44,6 +45,7 @@ class DeadlineUpdate(BaseModel):
     last_started_at: Optional[datetime] = None
     days_needed: Optional[int] = Field(default=None, ge=1)
     is_marked: Optional[bool] = None
+    is_important: Optional[bool] = None
     is_postponed: Optional[bool] = None
     previous_due_date: Optional[datetime] = None
 
@@ -68,6 +70,7 @@ class Deadline(BaseModel):
     last_started_at: Optional[datetime] = None
     days_needed: Optional[int] = None
     is_marked: bool = False
+    is_important: bool = False
     source: DeadlineSource = DeadlineSource()
     confidence: Optional[float] = None
     is_postponed: bool = False

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus } from 'lucide-react';
+import { Flag, Plus } from 'lucide-react';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
 import { Input } from './ui/input';
@@ -71,6 +71,25 @@ const DeadlineModal = ({ isOpen, onOpenChange, editingDeadline, formData, setFor
               className="mt-1"
             />
           </div>
+
+          <button
+            type="button"
+            aria-pressed={Boolean(formData.isImportant)}
+            onClick={() => setFormData(prev => ({ ...prev, isImportant: !prev.isImportant }))}
+            className={`w-full flex items-center justify-between rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+              formData.isImportant
+                ? 'border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100 dark:border-rose-800 dark:bg-rose-950/30 dark:text-rose-300 dark:hover:bg-rose-950/45'
+                : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800'
+            }`}
+          >
+            <span className="flex items-center gap-2">
+              <Flag className="w-4 h-4" />
+              Important
+            </span>
+            <span className={`text-xs ${formData.isImportant ? 'text-rose-500 dark:text-rose-300' : 'text-slate-400 dark:text-slate-500'}`}>
+              {formData.isImportant ? 'On' : 'Off'}
+            </span>
+          </button>
 
           {/* Recurring Options */}
           <div className="space-y-3 border-t pt-4">
