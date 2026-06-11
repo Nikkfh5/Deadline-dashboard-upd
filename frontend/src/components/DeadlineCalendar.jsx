@@ -157,13 +157,12 @@ const DeadlineCalendar = ({ deadlines, isPlanningMode, planningSubMode, manualPl
                     hasImportantDueDate ? 'text-sm font-black tracking-wide text-rose-600 dark:text-rose-300' : 'text-xs font-semibold text-red-600 dark:text-red-400'
                   )}>
                     {hasImportantDueDate ? '!!' : 'Deadline day'}
-                    {!hasImportantDueDate && dueDeadlines.length > 0 && (
-                      <span className="font-normal text-slate-500 dark:text-slate-400 ml-1 inline-flex flex-wrap items-center gap-1">
-                        {dueDeadlines.map((d) => (
-                          <span key={d.id} className="inline-flex items-center gap-1">
-                            <span>{d.name}</span>
-                          </span>
-                        ))}
+                    {dueDeadlines.length > 0 && (
+                      <span className={cn(
+                        'font-normal text-slate-500 dark:text-slate-400 ml-2 inline-flex flex-wrap items-center gap-1',
+                        hasImportantDueDate && 'text-sm tracking-normal'
+                      )}>
+                        {dueDeadlines.map((d) => <span key={d.id}>{d.name}</span>)}
                       </span>
                     )}
                   </div>
