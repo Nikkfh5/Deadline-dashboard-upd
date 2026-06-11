@@ -14,6 +14,8 @@ import {
 } from '../lib/calendar-utils';
 import { isSameDay, startOfDay, format } from 'date-fns';
 
+const isImportantDeadline = (deadline) => Boolean(deadline?.isImportant);
+
 const DeadlineCalendar = ({ deadlines, isPlanningMode, planningSubMode, manualPlan, onDayClick, manualActiveDeadlineId }) => {
   // Exclude temporary (recurring) deadlines from calendar
   const visibleDeadlines = useMemo(
@@ -70,7 +72,10 @@ const DeadlineCalendar = ({ deadlines, isPlanningMode, planningSubMode, manualPl
     const deadlinesForDay = getDeadlinesForDay(date, workPeriods);
     const isDueDate = dueDates.some((d) => isSameDay(d, date));
     const dueDeadlines = dueDeadlinesByDay.get(dayKey) || [];
+    const hasImportantDueDate = dueDeadlines.some(isImportantDeadline);
     const overlapCount = overlappingIds.length;
+    const hasWorkFill = overlapCount > 0;
+    const showImportantDueAccent = hasImportantDueDate && !hasWorkFill;
 
     // Background style based on work periods and overlaps
     let bgStyle = {};
@@ -103,7 +108,9 @@ const DeadlineCalendar = ({ deadlines, isPlanningMode, planningSubMode, manualPl
         <span
           className={cn(
             'text-sm leading-none z-10',
-            isDueDate && 'text-red-600 dark:text-red-400 font-black'
+            isDueDate && (showImportantDueAccent
+              ? 'text-rose-500 dark:text-rose-300 font-black'
+              : 'text-red-600 dark:text-red-400 font-black')
           )}
         >
           {date.getDate()}
@@ -132,7 +139,11 @@ const DeadlineCalendar = ({ deadlines, isPlanningMode, planningSubMode, manualPl
         {/* Due date marker */}
         {isDueDate && !deadlinesForDay.length && (
           <div className="absolute bottom-0.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-red-500 block" />
+            {hasImportantDueDate ? (
+              <span className="block h-2 w-2 rotate-45 rounded-[2px] bg-rose-500 ring-1 ring-rose-200/80 dark:bg-rose-400 dark:ring-rose-200/50" />
+            ) : (
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500 block" />
+            )}
           </div>
         )}
 
@@ -142,11 +153,23 @@ const DeadlineCalendar = ({ deadlines, isPlanningMode, planningSubMode, manualPl
             <div className="max-w-xs rounded-md px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-lg whitespace-nowrap">
               <div className="space-y-1">
                 {isDueDate && (
-                  <div className="text-xs font-semibold text-red-600 dark:text-red-400">
-                    Deadline day
+                  <div className={cn(
+                    'text-xs font-semibold',
+                    hasImportantDueDate ? 'text-rose-600 dark:text-rose-300' : 'text-red-600 dark:text-red-400'
+                  )}>
+                    {hasImportantDueDate ? 'Important deadline day' : 'Deadline day'}
                     {dueDeadlines.length > 0 && (
-                      <span className="font-normal text-slate-500 dark:text-slate-400 ml-1">
-                        ({dueDeadlines.map(d => d.name).join(', ')})
+                      <span className="font-normal text-slate-500 dark:text-slate-400 ml-1 inline-flex flex-wrap items-center gap-1">
+                        {dueDeadlines.map((d) => (
+                          <span key={d.id} className="inline-flex items-center gap-1">
+                            <span>{d.name}</span>
+                            {isImportantDeadline(d) && (
+                              <span className="rounded px-1 text-[9px] font-semibold uppercase tracking-wide bg-rose-100 text-rose-600 dark:bg-rose-950/50 dark:text-rose-300">
+                                ! Important
+                              </span>
+                            )}
+                          </span>
+                        ))}
                       </span>
                     )}
                   </div>
@@ -162,6 +185,11 @@ const DeadlineCalendar = ({ deadlines, isPlanningMode, planningSubMode, manualPl
                       <span className="text-slate-700 dark:text-slate-300 font-medium">
                         {deadline.name}
                       </span>
+                      {isImportantDeadline(deadline) && (
+                        <span className="rounded px-1 text-[9px] font-semibold uppercase tracking-wide bg-rose-100 text-rose-600 dark:bg-rose-950/50 dark:text-rose-300">
+                          ! Important
+                        </span>
+                      )}
                       <span className="text-slate-500 dark:text-slate-400">
                         {isManual ? `${manualPlan[sourceId]?.days?.length || 0}d manual` : `${deadline.daysNeeded}d`}
                       </span>
@@ -205,6 +233,11 @@ const DeadlineCalendar = ({ deadlines, isPlanningMode, planningSubMode, manualPl
     return items;
   }, [workPeriods, manualPlan]);
 
+  const hasImportantDeadlines = useMemo(
+    () => visibleDeadlines.some(isImportantDeadline),
+    [visibleDeadlines]
+  );
+  const showLegend = activeWorkPeriods.length > 0 || hasImportantDeadlines;
   const numberOfMonths = isPlanningMode ? 2 : 1;
 
   return (
@@ -246,13 +279,14 @@ const DeadlineCalendar = ({ deadlines, isPlanningMode, planningSubMode, manualPl
         />
 
         {/* Legend */}
-        {activeWorkPeriods.length > 0 && (
+        {showLegend && (
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4 min-w-[180px]">
             <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">
-              Work Periods
+              {activeWorkPeriods.length > 0 ? 'Work Periods' : 'Markers'}
             </h4>
-            <div className="space-y-2">
-              {activeWorkPeriods.map(({ name, colorIndex, daysNeeded, isManual, manualDayCount }, idx) => (
+            {activeWorkPeriods.length > 0 && (
+              <div className="space-y-2">
+                {activeWorkPeriods.map(({ name, colorIndex, daysNeeded, isManual, manualDayCount }, idx) => (
                   <div key={idx} className="flex items-center gap-2">
                     <span
                       className={cn('w-3 h-3 rounded-sm shrink-0', DOT_COLORS[colorIndex] || DOT_COLORS[0])}
@@ -264,11 +298,15 @@ const DeadlineCalendar = ({ deadlines, isPlanningMode, planningSubMode, manualPl
                       {isManual ? `${manualDayCount}d` : `${daysNeeded}d`}
                     </span>
                   </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
 
             {/* Overlap legend */}
-            <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-700 space-y-1.5">
+            <div className={cn(
+              'space-y-1.5',
+              activeWorkPeriods.length > 0 && 'mt-3 pt-3 border-t border-slate-100 dark:border-slate-700'
+            )}>
               <div className="flex items-center gap-2">
                 <span className="w-3 h-3 rounded-sm shrink-0" style={{ backgroundColor: 'hsla(173, 58%, 39%, 0.22)' }} />
                 <span className="text-[10px] text-slate-500 dark:text-slate-400">2 tasks overlap</span>
@@ -280,6 +318,10 @@ const DeadlineCalendar = ({ deadlines, isPlanningMode, planningSubMode, manualPl
               <div className="flex items-center gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0 ml-0.5" />
                 <span className="text-[10px] text-slate-500 dark:text-slate-400 ml-0.5">Deadline day</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 rotate-45 rounded-[2px] bg-rose-500 ring-1 ring-rose-200/80 shrink-0 ml-0.5 dark:bg-rose-400 dark:ring-rose-200/50" />
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 ml-0.5">Important deadline</span>
               </div>
             </div>
           </div>
