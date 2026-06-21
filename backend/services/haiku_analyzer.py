@@ -1,5 +1,6 @@
 import anthropic
 import asyncio
+import httpx
 import json
 import logging
 import os
@@ -145,16 +146,167 @@ DATE_PARSE_PROMPT = """Пользователь вводит дату/время
 
 
 MAX_API_RETRIES = 3
+DEFAULT_PROVIDER_ORDER = ("gemini", "groq", "cerebras", "haiku")
+
+
+class GeminiProvider:
+    name = "gemini"
+
+    def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None,
+                 base_url: Optional[str] = None):
+        self.api_key = api_key or os.environ.get("GEMINI_API_KEY", "")
+        self.model = model or os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
+        self.base_url = (base_url or os.environ.get(
+            "GEMINI_BASE_URL",
+            "https://generativelanguage.googleapis.com/v1beta",
+        )).rstrip("/")
+        self.configured = bool(self.api_key)
+
+    async def complete(self, prompt: str, max_tokens: int) -> str:
+        url = f"{self.base_url}/models/{self.model}:generateContent"
+        payload = {
+            "contents": [
+                {
+                    "role": "user",
+                    "parts": [{"text": prompt}],
+                }
+            ],
+            "generationConfig": {
+                "temperature": 0,
+                "maxOutputTokens": max_tokens,
+                "responseMimeType": "application/json",
+                "thinkingConfig": {"thinkingBudget": 0},
+            },
+        }
+        headers = {"x-goog-api-key": self.api_key}
+
+        async with httpx.AsyncClient(timeout=60) as client:
+            response = await client.post(url, headers=headers, json=payload)
+            response.raise_for_status()
+            data = response.json()
+
+        return _gemini_text(data)
+
+
+class OpenAICompatibleProvider:
+    def __init__(self, name: str, api_key: Optional[str], model: str, base_url: str,
+                 extra_payload: Optional[dict] = None):
+        self.name = name
+        self.api_key = api_key or ""
+        self.model = model
+        self.base_url = base_url.rstrip("/")
+        self.extra_payload = extra_payload or {}
+        self.configured = bool(self.api_key)
+
+    async def complete(self, prompt: str, max_tokens: int) -> str:
+        payload = {
+            "model": self.model,
+            "messages": [{"role": "user", "content": prompt}],
+            "max_completion_tokens": max_tokens,
+            "temperature": 0,
+            "response_format": {"type": "json_object"},
+        }
+        payload.update(self.extra_payload)
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+
+        async with httpx.AsyncClient(timeout=60) as client:
+            response = await client.post(
+                f"{self.base_url}/chat/completions",
+                headers=headers,
+                json=payload,
+            )
+            response.raise_for_status()
+            data = response.json()
+
+        content = data["choices"][0]["message"].get("content")
+        if not content:
+            raise ValueError(f"{self.name} response has no content")
+        return content.strip()
+
+
+class HaikuProvider:
+    name = "haiku"
+
+    def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None,
+                 base_url: Optional[str] = None):
+        self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY", "")
+        self.model = model or os.environ.get("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
+        self.base_url = base_url or os.environ.get("ANTHROPIC_BASE_URL")
+        self.configured = bool(self.api_key)
+        self.client = (
+            anthropic.AsyncAnthropic(api_key=self.api_key, base_url=self.base_url)
+            if self.configured
+            else None
+        )
+
+    async def complete(self, prompt: str, max_tokens: int) -> str:
+        response = await self.client.messages.create(
+            model=self.model,
+            max_tokens=max_tokens,
+            temperature=0,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return response.content[0].text.strip()
+
+
+def _build_default_providers(api_key: Optional[str] = None) -> list:
+    provider_map = {
+        "gemini": GeminiProvider(),
+        "groq": OpenAICompatibleProvider(
+            name="groq",
+            api_key=os.environ.get("GROQ_API_KEY", ""),
+            model=os.environ.get("GROQ_MODEL", "qwen/qwen3-32b"),
+            base_url=os.environ.get("GROQ_BASE_URL", "https://api.groq.com/openai/v1"),
+        ),
+        "cerebras": OpenAICompatibleProvider(
+            name="cerebras",
+            api_key=os.environ.get("CEREBRAS_API_KEY", ""),
+            model=os.environ.get("CEREBRAS_MODEL", "gpt-oss-120b"),
+            base_url=os.environ.get("CEREBRAS_BASE_URL", "https://api.cerebras.ai/v1"),
+            extra_payload={
+                "reasoning_effort": os.environ.get("CEREBRAS_REASONING_EFFORT", "low"),
+                "reasoning_format": os.environ.get("CEREBRAS_REASONING_FORMAT", "hidden"),
+            },
+        ),
+        "haiku": HaikuProvider(api_key=api_key),
+    }
+    order = [
+        item.strip().lower()
+        for item in os.environ.get("LLM_PROVIDER_ORDER", ",".join(DEFAULT_PROVIDER_ORDER)).split(",")
+        if item.strip()
+    ]
+
+    providers = []
+    for name in order:
+        provider = provider_map.get(name)
+        if provider is None:
+            logger.warning("Unknown LLM provider in LLM_PROVIDER_ORDER: %s", name)
+            continue
+        providers.append(provider)
+    return providers
 
 
 class HaikuAnalyzer:
-    def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY", "")
-        if self.api_key:
-            self.client = anthropic.AsyncAnthropic(api_key=self.api_key)
-        else:
+    def __init__(self, api_key: Optional[str] = None, providers: Optional[list] = None):
+        if providers is not None:
+            self.providers = list(providers)
+            self.api_key = api_key or ""
             self.client = None
-            logger.warning("ANTHROPIC_API_KEY not set, HaikuAnalyzer disabled")
+        elif api_key == "":
+            self.providers = []
+            self.api_key = ""
+            self.client = None
+        else:
+            self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY", "")
+            self.providers = _build_default_providers(api_key=api_key)
+            haiku = next((p for p in self.providers if p.name == "haiku"), None)
+            self.client = haiku.client if haiku else None
+
+        if not any(provider.configured for provider in self.providers):
+            logger.warning("No LLM providers configured, HaikuAnalyzer disabled")
 
     async def _api_call(self, **kwargs) -> str:
         """Call Anthropic API with retry and backoff."""
@@ -170,9 +322,42 @@ class HaikuAnalyzer:
                     logger.warning(f"Haiku API retry {attempt + 1}/{MAX_API_RETRIES}: {e}")
         raise last_error
 
+    async def _provider_call(self, provider, prompt: str, max_tokens: int) -> str:
+        last_error = None
+        for attempt in range(MAX_API_RETRIES):
+            try:
+                return await provider.complete(prompt, max_tokens)
+            except Exception as e:
+                last_error = e
+                if attempt < MAX_API_RETRIES - 1:
+                    await asyncio.sleep(2 ** attempt)
+                    logger.warning(
+                        "LLM provider %s retry %s/%s: %s",
+                        provider.name,
+                        attempt + 1,
+                        MAX_API_RETRIES,
+                        e,
+                    )
+        raise last_error
+
+    async def _json_call(self, prompt: str, max_tokens: int, operation: str) -> dict:
+        last_error = None
+        for provider in self.providers:
+            if not provider.configured:
+                continue
+
+            try:
+                raw = await self._provider_call(provider, prompt, max_tokens)
+                return _extract_json(raw)
+            except Exception as e:
+                last_error = e
+                logger.warning("LLM provider %s failed for %s: %s", provider.name, operation, e)
+
+        raise RuntimeError(f"All LLM providers failed for {operation}: {last_error}")
+
     async def analyze_post(self, text: str, channel_name: str = "", channel_context: str = "",
                            channel_about: str = "", known_subjects: list = None) -> dict:
-        if not self.client:
+        if not any(provider.configured for provider in self.providers):
             return {"has_deadline": False, "deadlines": [], "analysis": "API key not configured"}
 
         current_year = _get_academic_year()
@@ -210,40 +395,30 @@ class HaikuAnalyzer:
         )
 
         try:
-            raw = await self._api_call(
-                model="claude-haiku-4-5-20251001",
-                max_tokens=1024,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            return _extract_json(raw)
-        except (anthropic.APIError, json.JSONDecodeError, ValueError) as e:
-            logger.error(f"Haiku analyze_post error: {e}")
+            return await self._json_call(prompt, max_tokens=1024, operation="analyze_post")
+        except (RuntimeError, json.JSONDecodeError, ValueError) as e:
+            logger.error(f"LLM analyze_post error: {e}")
             return {"has_deadline": False, "deadlines": [], "analysis": str(e)}
 
     async def parse_date(self, user_text: str) -> Optional[datetime]:
         """Parse natural language date using Haiku. Returns datetime in UTC or None."""
-        if not self.client:
+        if not any(provider.configured for provider in self.providers):
             return None
 
         today = datetime.now().strftime("%Y-%m-%d (%A)")
         prompt = DATE_PARSE_PROMPT.format(today=today, user_text=user_text)
 
         try:
-            raw = await self._api_call(
-                model="claude-haiku-4-5-20251001",
-                max_tokens=256,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            data = _extract_json(raw)
+            data = await self._json_call(prompt, max_tokens=256, operation="parse_date")
             if data.get("parsed") and data.get("date"):
                 dt = datetime.fromisoformat(data["date"])
                 return dt - timedelta(hours=3)
-        except (anthropic.APIError, json.JSONDecodeError, ValueError) as e:
-            logger.error(f"Haiku date parse error: {e}")
+        except (RuntimeError, json.JSONDecodeError, ValueError) as e:
+            logger.error(f"LLM date parse error: {e}")
         return None
 
     async def analyze_wiki(self, html_content: str, url: str) -> list:
-        if not self.client:
+        if not any(provider.configured for provider in self.providers):
             return []
 
         # Truncate to avoid token limits
@@ -256,15 +431,10 @@ class HaikuAnalyzer:
         )
 
         try:
-            raw = await self._api_call(
-                model="claude-haiku-4-5-20251001",
-                max_tokens=2048,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            data = _extract_json(raw)
+            data = await self._json_call(prompt, max_tokens=2048, operation="analyze_wiki")
             return data.get("deadlines", [])
-        except (anthropic.APIError, json.JSONDecodeError, ValueError) as e:
-            logger.error(f"Haiku wiki analysis error: {e}")
+        except (RuntimeError, json.JSONDecodeError, ValueError) as e:
+            logger.error(f"LLM wiki analysis error: {e}")
             return []
 
 
@@ -276,6 +446,19 @@ def _extract_json(raw: str) -> dict:
     if match:
         text = match.group(1).strip()
     return json.loads(text)
+
+
+def _gemini_text(data: dict) -> str:
+    candidates = data.get("candidates") or []
+    if not candidates:
+        raise ValueError("Gemini response has no candidates")
+
+    parts = candidates[0].get("content", {}).get("parts") or []
+    text_parts = [part.get("text", "") for part in parts if part.get("text")]
+    if not text_parts:
+        raise ValueError("Gemini response has no text")
+
+    return "".join(text_parts).strip()
 
 
 def _get_academic_year() -> str:

@@ -71,8 +71,25 @@ TELEGRAM_BOT_TOKEN=123456:ABC-DEF...        # от @BotFather
 TELEGRAM_API_ID=12345678                     # от my.telegram.org
 TELEGRAM_API_HASH=abc123def456               # от my.telegram.org
 TELEGRAM_SESSION_STRING=                     # сгенерируй на шаге 3
-ANTHROPIC_API_KEY=sk-ant-...                 # от console.anthropic.com
+LLM_PROVIDER_ORDER=gemini,groq,cerebras,haiku # порядок fallback для AI-парсинга
+GEMINI_API_KEY=                              # Google AI Studio, optional
+GEMINI_MODEL=gemini-3.5-flash
+GROQ_API_KEY=                                # GroqCloud, optional
+GROQ_MODEL=qwen/qwen3-32b
+CEREBRAS_API_KEY=                            # Cerebras Inference, optional
+CEREBRAS_MODEL=gpt-oss-120b
+ANTHROPIC_API_KEY=sk-ant-...                 # Claude Haiku fallback, optional
+ANTHROPIC_MODEL=claude-haiku-4-5-20251001
 FRONTEND_URL=http://localhost:3000           # URL дашборда для ссылок в боте
+```
+
+Local API secrets should go into ignored `backend/.env.local`; it is loaded after
+`backend/.env` and overrides matching values. For the current no-Groq setup:
+
+```env
+LLM_PROVIDER_ORDER=gemini,cerebras,haiku
+GEMINI_API_KEY=...
+CEREBRAS_API_KEY=...
 ```
 
 ### 3. Сгенерируй Telethon-сессию

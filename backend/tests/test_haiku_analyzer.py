@@ -7,6 +7,21 @@ import pytest
 from services.haiku_analyzer import _get_academic_year, TELEGRAM_ANALYSIS_PROMPT, WIKI_ANALYSIS_PROMPT
 
 
+class FakeProvider:
+    def __init__(self, name, responses, configured=True):
+        self.name = name
+        self.responses = list(responses)
+        self.configured = configured
+        self.calls = []
+
+    async def complete(self, prompt: str, max_tokens: int) -> str:
+        self.calls.append({"prompt": prompt, "max_tokens": max_tokens})
+        response = self.responses.pop(0)
+        if isinstance(response, Exception):
+            raise response
+        return response
+
+
 class TestAcademicYear:
     def test_returns_string(self):
         result = _get_academic_year()
@@ -74,6 +89,65 @@ class TestHaikuAnalyzerNoKey:
         analyzer = HaikuAnalyzer(api_key="")
         result = await analyzer.analyze_wiki("<html>test</html>", "http://test.com")
         assert result == []
+
+
+class TestProviderFallback:
+    def test_default_provider_ranking(self, monkeypatch):
+        from services.haiku_analyzer import HaikuAnalyzer
+
+        monkeypatch.delenv("LLM_PROVIDER_ORDER", raising=False)
+        monkeypatch.setenv("GEMINI_API_KEY", "gemini-key")
+        monkeypatch.setenv("GROQ_API_KEY", "groq-key")
+        monkeypatch.setenv("CEREBRAS_API_KEY", "cerebras-key")
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "anthropic-key")
+
+        analyzer = HaikuAnalyzer()
+
+        assert [provider.name for provider in analyzer.providers] == [
+            "gemini",
+            "groq",
+            "cerebras",
+            "haiku",
+        ]
+
+    @pytest.mark.asyncio
+    async def test_analyze_post_falls_back_after_invalid_json(self):
+        from services.haiku_analyzer import HaikuAnalyzer
+
+        gemini = FakeProvider("gemini", ["not json"])
+        groq = FakeProvider(
+            "groq",
+            ['{"analysis": "ok", "has_deadline": true, "deadlines": []}'],
+        )
+        haiku = FakeProvider(
+            "haiku",
+            ['{"analysis": "should not run", "has_deadline": false, "deadlines": []}'],
+        )
+        analyzer = HaikuAnalyzer(providers=[gemini, groq, haiku])
+
+        result = await analyzer.analyze_post("ДЗ до завтра")
+
+        assert result["has_deadline"] is True
+        assert len(gemini.calls) == 1
+        assert len(groq.calls) == 1
+        assert haiku.calls == []
+
+    @pytest.mark.asyncio
+    async def test_parse_date_skips_unconfigured_provider(self):
+        from services.haiku_analyzer import HaikuAnalyzer
+
+        gemini = FakeProvider("gemini", ['{"parsed": false, "date": null}'], configured=False)
+        groq = FakeProvider("groq", ['{"parsed": true, "date": "2026-06-22T23:59:00"}'])
+        analyzer = HaikuAnalyzer(providers=[gemini, groq])
+
+        result = await analyzer.parse_date("завтра")
+
+        assert result is not None
+        assert result.year == 2026
+        assert result.month == 6
+        assert result.day == 22
+        assert gemini.calls == []
+        assert len(groq.calls) == 1
 
 
 if __name__ == "__main__":
