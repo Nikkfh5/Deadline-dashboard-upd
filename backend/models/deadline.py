@@ -1,7 +1,7 @@
 import re
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, field_serializer
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 def strip_html_tags(value: str) -> str:
@@ -76,3 +76,9 @@ class Deadline(BaseModel):
     is_postponed: bool = False
     previous_due_date: Optional[datetime] = None
     folder_id: Optional[str] = None
+
+    @field_serializer('due_date', 'created_at', 'updated_at', 'last_started_at', 'previous_due_date', when_used='json')
+    def serialize_utc(self, value):
+        if value is not None and value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value

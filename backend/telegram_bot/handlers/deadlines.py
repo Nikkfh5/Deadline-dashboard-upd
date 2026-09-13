@@ -152,14 +152,18 @@ async def complete_deadline_button(update: Update, context: ContextTypes.DEFAULT
     await query.answer()
 
     deadline_id = query.data.removeprefix(COMPLETE_DEADLINE_CB)
+    user = await get_current_user(update)
+    if not user:
+        return
     db = get_db()
 
-    deadline = await db.deadlines.find_one({"id": deadline_id})
+    deadline_filter = {"id": deadline_id, "user_id": str(user["_id"])}
+    deadline = await db.deadlines.find_one(deadline_filter)
     if not deadline:
         await query.answer("Дедлайн не найден", show_alert=True)
         return
 
-    await db.deadlines.delete_one({"id": deadline_id})
+    await db.deadlines.delete_one(deadline_filter)
 
     # Record completion
     from datetime import datetime

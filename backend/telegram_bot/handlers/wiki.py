@@ -67,9 +67,12 @@ async def wiki_url_received(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
 async def _cancel_add_wiki(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
-    await query.answer()
     context.user_data.pop("add_wiki_user", None)
-    await query.edit_message_text("Добавление wiki отменено.")
+    if query:
+        await query.answer()
+        await query.edit_message_text("Добавление wiki отменено.")
+    else:
+        await update.message.reply_text("Добавление wiki отменено.")
     return ConversationHandler.END
 
 
@@ -136,7 +139,7 @@ def build_add_wiki_conversation() -> ConversationHandler:
         },
         fallbacks=[
             CallbackQueryHandler(_cancel_add_wiki, pattern=f"^{CANCEL_CB}$"),
-            CommandHandler("cancel", lambda u, c: ConversationHandler.END),
+            CommandHandler("cancel", _cancel_add_wiki),
         ],
         allow_reentry=True,
         conversation_timeout=120,

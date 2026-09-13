@@ -62,6 +62,17 @@ class TestDeadlineModels:
         assert d.is_marked is False
         assert d.is_important is False
 
+    def test_deadline_json_identifies_mongo_timestamps_as_utc(self):
+        dt = datetime(2026, 9, 16, 7, 30)
+        d = Deadline(id="utc", name="Course", task="Exam", due_date=dt,
+                     created_at=dt, updated_at=dt, previous_due_date=dt)
+
+        data = d.model_dump(mode="json")
+
+        for key in ("due_date", "created_at", "updated_at", "previous_due_date"):
+            assert data[key] == "2026-09-16T07:30:00Z"
+        assert data["last_started_at"] is None
+
 
 class TestUserModels:
     def test_user_create(self):
