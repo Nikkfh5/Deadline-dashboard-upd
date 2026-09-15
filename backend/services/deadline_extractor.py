@@ -3,7 +3,7 @@ import logging
 import uuid
 from datetime import datetime, timedelta, timezone
 from difflib import SequenceMatcher
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 from models.deadline import strip_html_tags
 from services.database import get_db
@@ -25,6 +25,25 @@ async def save_extracted_deadlines(
     source_id: str,
     source_type: str,
     raw_text: str,
+    source_name: Optional[str] = None,
+    source_url: Optional[str] = None,
+) -> Tuple[int, List[dict]]:
+    # A sender must not observe half a post, and concurrent imports must dedupe.
+    from services.notifications import delivery_lock
+
+    async with delivery_lock:
+        return await _save_extracted_deadlines(
+            user_ids, extracted, source_id, source_type, raw_text, source_name, source_url)
+
+
+async def _save_extracted_deadlines(
+    user_ids: List[str],
+    extracted: List[dict],
+    source_id: str,
+    source_type: str,
+    raw_text: str,
+    source_name: Optional[str] = None,
+    source_url: Optional[str] = None,
 ) -> Tuple[int, List[dict]]:
     """Save extracted deadlines to DB for given users.
 
@@ -54,6 +73,7 @@ async def save_extracted_deadlines(
     # Prepare all valid deadlines
     docs_to_insert = []
     now = datetime.utcnow()
+    notification_batch = str(uuid.uuid4())
 
     for deadline_data in extracted:
         confidence = deadline_data.get("confidence", 0)
@@ -100,6 +120,16 @@ async def save_extracted_deadlines(
                 "is_postponed": False,
                 "previous_due_date": None,
             })
+            if source_name:
+                docs_to_insert[-1]["notifications"] = [{
+                    "id": f"{notification_batch}:new:{user_id}",
+                    "source_name": source_name,
+                    "source_url": source_url,
+                    "next_attempt_at": now,
+                    "name": docs_to_insert[-1]["name"],
+                    "task": docs_to_insert[-1]["task"],
+                    "due_date": due_date,
+                }]
 
     if not docs_to_insert:
         return 0, []
@@ -145,15 +175,23 @@ async def save_extracted_deadlines(
                 new_due = doc["due_date"]
                 if existing_due != new_due:
                     # Reschedule: update existing deadline
+                    changes = {
+                        "due_date": new_due,
+                        "previous_due_date": existing_due,
+                        "is_postponed": True,
+                        "updated_at": now,
+                        "task": doc["task"],
+                    }
+                    update = {"$set": changes}
+                    if source_name:
+                        update["$push"] = {"notifications": {
+                            **doc["notifications"][0],
+                            "id": f"{notification_batch}:moved:{doc['user_id']}",
+                            "old_date": existing_due,
+                        }}
                     await db.deadlines.update_one(
                         {"_id": existing["_id"]},
-                        {"$set": {
-                            "due_date": new_due,
-                            "previous_due_date": existing_due,
-                            "is_postponed": True,
-                            "updated_at": now,
-                            "task": doc["task"],
-                        }},
+                        update,
                     )
                     rescheduled.append({
                         "name": doc["name"],

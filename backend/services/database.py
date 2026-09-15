@@ -28,6 +28,7 @@ async def init_db() -> AsyncIOMotorDatabase:
     await _db.sources.create_index([("user_id", 1), ("type", 1), ("identifier", 1)], unique=True)
     await _db.deadlines.create_index([("user_id", 1), ("due_date", 1)])
     await _db.deadlines.create_index("id", unique=True)
+    await _db.deadlines.create_index("notifications.next_attempt_at", sparse=True)
     await _db.deadlines.create_index([("user_id", 1), ("name", 1), ("task", 1), ("due_date", 1)])
     await _db.folders.create_index([("user_id", 1)])
     await _db.folders.create_index([("user_id", 1), ("name", 1)], unique=True)

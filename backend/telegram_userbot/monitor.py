@@ -212,6 +212,9 @@ async def _handle_message(event):
 
     user_ids = list(set(s["user_id"] for s in sources))
     source_id = str(sources[0]["_id"])
+    source_name = chat.title or channel_username or str(channel_id)
+    link_channel = chat.username or f"c/{unsigned_32 if channel_id < 0 else channel_id}"
+    source_url = f"https://t.me/{link_channel}/{event.message.id}"
 
     count, rescheduled = await save_extracted_deadlines(
         user_ids=user_ids,
@@ -219,7 +222,12 @@ async def _handle_message(event):
         source_id=source_id,
         source_type="telegram",
         raw_text=text,
+        source_name=source_name,
+        source_url=source_url,
     )
+
+    from services.notifications import send_pending_notifications
+    await send_pending_notifications()
 
     if count > 0:
         logger.info(f"Added {count} deadlines from {channel_username or str(channel_id)}")
@@ -247,10 +255,5 @@ async def _handle_message(event):
             {"$set": {"last_post_id": event.message.id}},
         )
 
-        from services.notifications import notify_new_deadlines
-        await notify_new_deadlines(user_ids, extracted, chat.title or channel_username or str(channel_id), count)
-
     if rescheduled:
         logger.info(f"Rescheduled {len(rescheduled)} deadlines from {channel_username or str(channel_id)}")
-        from services.notifications import notify_deadline_moved
-        await notify_deadline_moved(user_ids, rescheduled, chat.title or channel_username or str(channel_id))
