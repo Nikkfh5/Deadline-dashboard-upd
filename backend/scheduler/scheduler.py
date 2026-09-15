@@ -4,6 +4,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 
 from scheduler.jobs.channel_check import channel_join_job
 from scheduler.jobs.reminders import reminders_job
+from services.notifications import send_pending_notifications
 
 logger = logging.getLogger(__name__)
 
@@ -13,6 +14,14 @@ _scheduler: AsyncIOScheduler = None
 def setup_scheduler():
     global _scheduler
     _scheduler = AsyncIOScheduler()
+
+    _scheduler.add_job(
+        send_pending_notifications,
+        IntervalTrigger(minutes=1),
+        id="notifications",
+        replace_existing=True,
+        max_instances=1,
+    )
 
     _scheduler.add_job(
         channel_join_job,
@@ -31,7 +40,7 @@ def setup_scheduler():
     )
 
     _scheduler.start()
-    logger.info("Scheduler started with channel_join (5min), reminders (10min) jobs")
+    logger.info("Scheduler started with notifications (1min), channel_join (5min), reminders (10min) jobs")
 
 
 def shutdown_scheduler():

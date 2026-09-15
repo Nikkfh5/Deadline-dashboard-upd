@@ -48,6 +48,7 @@ def setup_handlers(client: TelegramClient):
     _client = client
 
     @client.on(events.NewMessage())
+    @client.on(events.MessageEdited())
     async def on_new_message(event):
         try:
             await _handle_message(event)
@@ -181,7 +182,8 @@ async def _handle_message(event):
 
     # Check if this text was already analyzed — reuse cached Haiku result
     from services.deadline_extractor import content_hash
-    c_hash = content_hash(text)
+    post_date = getattr(event.message, "edit_date", None) or getattr(event.message, "date", None)
+    c_hash = content_hash(text, post_date)
     cached = await db.parsed_posts.find_one({"content_hash": c_hash})
 
     if cached:
@@ -199,6 +201,7 @@ async def _handle_message(event):
             channel_context=profile["context"],
             channel_about=profile["about"],
             known_subjects=profile["known_subjects"],
+            post_date=getattr(event.message, "date", None),
         )
 
         logger.info(f"Haiku result: has_deadline={result.get('has_deadline')}, deadlines={len(result.get('deadlines', []))}, analysis={result.get('analysis', '')[:150]}")
@@ -212,6 +215,9 @@ async def _handle_message(event):
 
     user_ids = list(set(s["user_id"] for s in sources))
     source_id = str(sources[0]["_id"])
+    source_name = chat.title or channel_username or str(channel_id)
+    link_channel = chat.username or f"c/{unsigned_32 if channel_id < 0 else channel_id}"
+    source_url = f"https://t.me/{link_channel}/{event.message.id}"
 
     count, rescheduled = await save_extracted_deadlines(
         user_ids=user_ids,
@@ -219,7 +225,13 @@ async def _handle_message(event):
         source_id=source_id,
         source_type="telegram",
         raw_text=text,
+        source_name=source_name,
+        source_url=source_url,
+        post_date=post_date,
     )
+
+    from services.notifications import send_pending_notifications
+    await send_pending_notifications()
 
     if count > 0:
         logger.info(f"Added {count} deadlines from {channel_username or str(channel_id)}")
@@ -247,10 +259,5 @@ async def _handle_message(event):
             {"$set": {"last_post_id": event.message.id}},
         )
 
-        from services.notifications import notify_new_deadlines
-        await notify_new_deadlines(user_ids, extracted, chat.title or channel_username or str(channel_id), count)
-
     if rescheduled:
         logger.info(f"Rescheduled {len(rescheduled)} deadlines from {channel_username or str(channel_id)}")
-        from services.notifications import notify_deadline_moved
-        await notify_deadline_moved(user_ids, rescheduled, chat.title or channel_username or str(channel_id))

@@ -9,10 +9,12 @@ import {
   mergeWorkPeriods,
   computeDayOverlapMap,
   getDeadlinesForDay,
+  getDueDates,
+  getMoscowDay,
   DOT_COLORS,
   MANUAL_BG_COLORS,
 } from '../lib/calendar-utils';
-import { isSameDay, startOfDay, format } from 'date-fns';
+import { isSameDay, format } from 'date-fns';
 
 const isImportantDeadline = (deadline) => Boolean(deadline?.isImportant);
 
@@ -50,7 +52,7 @@ const DeadlineCalendar = ({ deadlines, isPlanningMode, planningSubMode, manualPl
   const isManualEntry = (id) => manualIdSet.has(id);
 
   const dueDates = useMemo(
-    () => visibleDeadlines.map((d) => startOfDay(new Date(d.dueDate))),
+    () => getDueDates(visibleDeadlines),
     [visibleDeadlines]
   );
 
@@ -58,7 +60,7 @@ const DeadlineCalendar = ({ deadlines, isPlanningMode, planningSubMode, manualPl
   const dueDeadlinesByDay = useMemo(() => {
     const map = new Map();
     visibleDeadlines.forEach((d) => {
-      const key = format(startOfDay(new Date(d.dueDate)), 'yyyy-MM-dd');
+      const key = format(getMoscowDay(d.dueDate), 'yyyy-MM-dd');
       if (!map.has(key)) map.set(key, []);
       map.get(key).push(d);
     });

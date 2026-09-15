@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from telegram import Update
 from telegram.ext import ContextTypes
@@ -91,7 +91,8 @@ async def snapshot_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             skipped_old = 0
             skipped_parsed = 0
 
-            for msg in messages:
+            for msg in sorted(messages, key=lambda m: m.edit_date or m.date):
+                post_date = msg.edit_date or msg.date
                 # Skip messages older than MAX_MESSAGE_AGE_DAYS
                 if msg.date and msg.date.replace(tzinfo=None) < cutoff_date:
                     skipped_old += 1
@@ -102,7 +103,7 @@ async def snapshot_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     continue
 
                 # Check if already parsed (by any source — shared cache)
-                c_hash = content_hash(text)
+                c_hash = content_hash(text, post_date)
                 cached = await db.parsed_posts.find_one({
                     "content_hash": c_hash,
                 })
@@ -121,6 +122,7 @@ async def snapshot_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         channel_context=profile["context"],
                         channel_about=profile["about"],
                         known_subjects=profile.get("known_subjects", []),
+                        post_date=msg.date,
                     )
 
                     if not result.get("has_deadline"):
@@ -131,16 +133,17 @@ async def snapshot_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         continue
 
                 # Filter out deadlines that already passed
-                # Haiku returns dates in MSK, so compare with MSK now
-                now_msk = datetime.utcnow() + timedelta(hours=3)
+                now_utc = datetime.now(timezone.utc)
                 valid = []
                 for d in extracted:
                     due_str = d.get("due_date")
                     if not due_str:
                         continue
                     try:
-                        due = datetime.fromisoformat(due_str)
-                        if due > now_msk:
+                        due = datetime.fromisoformat(due_str.replace("Z", "+00:00"))
+                        if due.tzinfo is None:
+                            due = due.replace(tzinfo=timezone(timedelta(hours=3)))
+                        if due > now_utc:
                             valid.append(d)
                     except (ValueError, TypeError):
                         valid.append(d)  # keep if can't parse — extractor will handle
@@ -154,6 +157,7 @@ async def snapshot_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     source_id=source_id,
                     source_type="telegram",
                     raw_text=text,
+                    post_date=post_date,
                 )
                 channel_new += count
                 channel_rescheduled += len(rescheduled)

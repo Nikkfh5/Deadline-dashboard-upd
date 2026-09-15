@@ -1,5 +1,11 @@
 import { subDays, eachDayOfInterval, startOfDay, format, isSameDay } from 'date-fns';
 
+// DayPicker uses browser-local Date objects to represent calendar days.
+export function getMoscowDay(value) {
+  const day = new Date(value).toLocaleDateString('sv-SE', { timeZone: 'Europe/Moscow' });
+  return new Date(`${day}T00:00:00`);
+}
+
 // Chart colors for assigning to deadlines (indexes 0-4 cycle)
 export const CHART_COLORS = [
   'var(--chart-1)',
@@ -78,7 +84,7 @@ export function computeWorkPeriods(deadlines, manualPlan = {}) {
   deadlines.forEach((deadline) => {
     if (!deadline.daysNeeded || deadline.daysNeeded < 1) return;
 
-    const dueDate = startOfDay(new Date(deadline.dueDate));
+    const dueDate = getMoscowDay(deadline.dueDate);
     const startDate = subDays(dueDate, deadline.daysNeeded - 1);
 
     const dates = eachDayOfInterval({ start: startDate, end: dueDate });
@@ -165,7 +171,7 @@ export function computeDayOverlapMap(workPeriods) {
  * Get all due dates as Date objects
  */
 export function getDueDates(deadlines) {
-  return deadlines.map((d) => startOfDay(new Date(d.dueDate)));
+  return deadlines.map((d) => getMoscowDay(d.dueDate));
 }
 
 /**
@@ -173,7 +179,7 @@ export function getDueDates(deadlines) {
  */
 export function isDeadlineDay(date, deadlines) {
   const day = startOfDay(date);
-  return deadlines.some((d) => isSameDay(startOfDay(new Date(d.dueDate)), day));
+  return deadlines.some((d) => isSameDay(getMoscowDay(d.dueDate), day));
 }
 
 /**
