@@ -1,7 +1,7 @@
 """Channel analysis dates must follow the same UTC storage contract as manual input."""
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
@@ -65,9 +65,82 @@ async def test_notifications_only_cover_saved_changes_per_user(monkeypatch):
         assert doc["notifications"][0]["source_url"] == "https://t.me/course/42"
         assert "old_date" not in doc["notifications"][0]
     query, update = db.deadlines.update_one.call_args.args
-    assert query == {"_id": "existing-b"}
+    assert query == {"_id": "existing-b", "updated_at": None}
     assert "notifications" not in update["$set"]
     notification = update["$push"]["notifications"]
     assert notification["old_date"] == datetime(2026, 9, 15, 7, 30)
     assert notification["id"] not in {d["notifications"][0]["id"] for d in inserted}
     assert notification["due_date"] == datetime(2026, 9, 16, 7, 30)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("old_task,new_task,details,post_day,last_seen,expected_new,expected_moved", [
+    ("ДЗ 1", "ДЗ 2", "", 20, 19, 1, 0),
+    ("HW 1.2", "HW 12", "", 20, 19, 1, 0),
+    ("Exam groups 1,2,5,7", "Exam groups 12,5,7", "", 20, 19, 1, 0),
+    ("ДЗ №1 | Очень длинные старые условия и ссылка на старую форму", "ДЗ №1", "Новая ссылка", 20, 19, 0, 1),
+    ("ДЗ №1", "ДЗ №1", "", 19, 20, 0, 0),
+])
+async def test_reschedule_identity_and_source_order(
+        monkeypatch, old_task, new_task, details, post_day, last_seen, expected_new, expected_moved):
+    from services import deadline_extractor
+    existing = {"_id": "old", "user_id": "user", "name": "Math", "task": old_task,
+                "due_date": datetime(2026, 9, 25), "source_updated_at": datetime(2026, 9, last_seen)}
+    db = SimpleNamespace(
+        parsed_posts=SimpleNamespace(find_one=AsyncMock(return_value=None), insert_one=AsyncMock()),
+        deadlines=SimpleNamespace(
+            find=Mock(return_value=SimpleNamespace(to_list=AsyncMock(return_value=[existing]))),
+            insert_many=AsyncMock(), update_one=AsyncMock()))
+    monkeypatch.setattr(deadline_extractor, "get_db", lambda: db)
+    count, moved = await deadline_extractor.save_extracted_deadlines(
+        ["user"], [{"subject": "Math", "task_name": new_task, "details": details,
+                    "due_date": "2026-09-27T23:59:00", "confidence": .95}],
+        "source", "telegram", "New post", post_date=datetime(2026, 9, post_day, tzinfo=timezone.utc))
+    assert (count, len(moved)) == (expected_new, expected_moved)
+    if expected_moved:
+        changes = db.deadlines.update_one.call_args.args[1]["$set"]
+        assert changes["source"]["original_text"] == "New post"
+        assert changes["source_updated_at"] == datetime(2026, 9, post_day)
+    else:
+        db.deadlines.update_one.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_replaying_cached_old_post_does_not_roll_date_back(monkeypatch):
+    from services import deadline_extractor
+    extracted = [{"subject": "Math", "task_name": "Exam", "due_date": "2026-09-20T23:59:00", "confidence": .95}]
+    existing = {"_id": "old", "user_id": "user", "name": "Math", "task": "Exam",
+                "due_date": datetime(2026, 9, 27, 20, 59), "source_updated_at": datetime(2026, 9, 19)}
+    db = SimpleNamespace(
+        parsed_posts=SimpleNamespace(find_one=AsyncMock(return_value={
+            "extracted_deadlines": extracted, "processed_at": datetime(2026, 9, 18)})),
+        deadlines=SimpleNamespace(
+            find=Mock(return_value=SimpleNamespace(to_list=AsyncMock(return_value=[existing]))),
+            insert_many=AsyncMock(), update_one=AsyncMock()))
+    monkeypatch.setattr(deadline_extractor, "get_db", lambda: db)
+    assert await deadline_extractor.save_extracted_deadlines(
+        ["user"], extracted, "source", "telegram", "Original exam post") == (0, [])
+    db.deadlines.update_one.assert_not_awaited()
+
+
+def test_cache_separates_same_relative_text_from_different_posts():
+    from services.deadline_extractor import content_hash
+    assert content_hash("ДЗ до завтра", datetime(2026, 9, 15)) != content_hash("ДЗ до завтра", datetime(2026, 9, 16))
+
+
+@pytest.mark.asyncio
+async def test_import_does_not_overwrite_concurrent_manual_edit(monkeypatch):
+    from services import deadline_extractor
+    existing = {"_id": "old", "user_id": "user", "name": "Math", "task": "Exam",
+                "due_date": datetime(2026, 9, 20), "updated_at": datetime(2026, 9, 15)}
+    db = SimpleNamespace(
+        parsed_posts=SimpleNamespace(find_one=AsyncMock(return_value=None), insert_one=AsyncMock()),
+        deadlines=SimpleNamespace(
+            find=Mock(return_value=SimpleNamespace(to_list=AsyncMock(return_value=[existing]))),
+            insert_many=AsyncMock(), update_one=AsyncMock(return_value=SimpleNamespace(matched_count=0))))
+    monkeypatch.setattr(deadline_extractor, "get_db", lambda: db)
+    result = await deadline_extractor.save_extracted_deadlines(
+        ["user"], [{"subject": "Math", "task_name": "Exam", "due_date": "2026-09-27T23:59:00", "confidence": .95}],
+        "source", "telegram", "Post", post_date=datetime(2026, 9, 16))
+    assert result == (0, [])
+    assert db.deadlines.update_one.call_args.args[0] == {"_id": "old", "updated_at": datetime(2026, 9, 15)}

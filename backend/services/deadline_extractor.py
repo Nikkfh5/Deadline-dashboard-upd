@@ -1,5 +1,6 @@
 import hashlib
 import logging
+import re
 import uuid
 from datetime import datetime, timedelta, timezone
 from difflib import SequenceMatcher
@@ -10,13 +11,26 @@ from services.database import get_db
 
 logger = logging.getLogger(__name__)
 
-DEDUPE_SIMILARITY_THRESHOLD = 0.6
+MIN_CONFIDENCE = 0.6
+DEDUPE_SIMILARITY_THRESHOLD = 0.85
 MAX_RAW_TEXT_STORE = 5000
 MAX_ORIGINAL_TEXT = 1000
 
 
-def content_hash(text: str) -> str:
+def content_hash(text: str, post_date: Optional[datetime] = None) -> str:
+    if post_date:
+        if post_date.tzinfo is None:
+            post_date = post_date.replace(tzinfo=timezone.utc)
+        text = f"{post_date.astimezone(timezone.utc).isoformat()}\n{text}"
     return hashlib.sha256(text.encode()).hexdigest()
+
+
+def _task_similarity(left: str, right: str) -> float:
+    left, right = (task.split("|", 1)[0].casefold() for task in (left, right))
+    if re.findall(r"\d+", left) != re.findall(r"\d+", right):
+        return 0
+    left, right = (re.sub(r"[^\w]", "", task) for task in (left, right))
+    return SequenceMatcher(None, left, right).ratio()
 
 
 async def save_extracted_deadlines(
@@ -27,13 +41,14 @@ async def save_extracted_deadlines(
     raw_text: str,
     source_name: Optional[str] = None,
     source_url: Optional[str] = None,
+    post_date: Optional[datetime] = None,
 ) -> Tuple[int, List[dict]]:
     # A sender must not observe half a post, and concurrent imports must dedupe.
     from services.notifications import delivery_lock
 
     async with delivery_lock:
         return await _save_extracted_deadlines(
-            user_ids, extracted, source_id, source_type, raw_text, source_name, source_url)
+            user_ids, extracted, source_id, source_type, raw_text, source_name, source_url, post_date)
 
 
 async def _save_extracted_deadlines(
@@ -44,6 +59,7 @@ async def _save_extracted_deadlines(
     raw_text: str,
     source_name: Optional[str] = None,
     source_url: Optional[str] = None,
+    post_date: Optional[datetime] = None,
 ) -> Tuple[int, List[dict]]:
     """Save extracted deadlines to DB for given users.
 
@@ -51,7 +67,7 @@ async def _save_extracted_deadlines(
     dicts like {"name": ..., "task": ..., "old_date": ..., "new_date": ...}.
     """
     db = get_db()
-    c_hash = content_hash(raw_text)
+    c_hash = content_hash(raw_text, post_date)
 
     # Check if this text was already analyzed (by any source) — reuse cached result
     cached = await db.parsed_posts.find_one({"content_hash": c_hash})
@@ -73,11 +89,14 @@ async def _save_extracted_deadlines(
     # Prepare all valid deadlines
     docs_to_insert = []
     now = datetime.utcnow()
+    source_updated_at = post_date or (cached or {}).get("processed_at") or now
+    if source_updated_at.tzinfo is not None:
+        source_updated_at = source_updated_at.astimezone(timezone.utc).replace(tzinfo=None)
     notification_batch = str(uuid.uuid4())
 
     for deadline_data in extracted:
         confidence = deadline_data.get("confidence", 0)
-        if confidence < DEDUPE_SIMILARITY_THRESHOLD:
+        if confidence < MIN_CONFIDENCE:
             continue
 
         due_date_str = deadline_data.get("due_date")
@@ -108,6 +127,7 @@ async def _save_extracted_deadlines(
                 "due_date": due_date,
                 "created_at": now,
                 "updated_at": now,
+                "source_updated_at": source_updated_at,
                 "is_recurring": False,
                 "interval_days": None,
                 "last_started_at": None,
@@ -150,7 +170,8 @@ async def _save_extracted_deadlines(
 
     existing_deadlines = await db.deadlines.find(
         {"$or": unique_dedup_keys},
-        {"user_id": 1, "name": 1, "task": 1, "due_date": 1, "_id": 1},
+        {"user_id": 1, "name": 1, "task": 1, "due_date": 1, "_id": 1,
+         "source_updated_at": 1, "updated_at": 1},
     ).to_list(1000)
 
     # Group existing deadlines by (user_id, name) for fast lookup
@@ -164,41 +185,52 @@ async def _save_extracted_deadlines(
     now = datetime.utcnow()
 
     for doc in docs_to_insert:
-        candidates = existing_by_user_name.get((doc["user_id"], doc["name"]), [])
+        candidates = sorted(
+            existing_by_user_name.get((doc["user_id"], doc["name"]), []),
+            key=lambda existing: _task_similarity(existing["task"], doc["task"]), reverse=True)
         matched = False
 
         for existing in candidates:
-            ratio = SequenceMatcher(None, existing["task"], doc["task"]).ratio()
+            ratio = _task_similarity(existing["task"], doc["task"])
             if ratio >= DEDUPE_SIMILARITY_THRESHOLD:
                 # Fuzzy match found
                 existing_due = existing["due_date"]
                 new_due = doc["due_date"]
+                last_source_update = existing.get("source_updated_at") or existing.get("updated_at")
+                if last_source_update and source_updated_at <= last_source_update:
+                    matched = True
+                    break
+                changes = {
+                    "source_updated_at": source_updated_at,
+                    "source": doc["source"],
+                    "task": doc["task"],
+                    "updated_at": now,
+                }
+                update = {"$set": changes}
                 if existing_due != new_due:
                     # Reschedule: update existing deadline
-                    changes = {
+                    changes.update({
                         "due_date": new_due,
                         "previous_due_date": existing_due,
                         "is_postponed": True,
-                        "updated_at": now,
-                        "task": doc["task"],
-                    }
-                    update = {"$set": changes}
+                    })
                     if source_name:
                         update["$push"] = {"notifications": {
                             **doc["notifications"][0],
                             "id": f"{notification_batch}:moved:{doc['user_id']}",
                             "old_date": existing_due,
                         }}
-                    await db.deadlines.update_one(
-                        {"_id": existing["_id"]},
-                        update,
-                    )
+                result = await db.deadlines.update_one(
+                    {"_id": existing["_id"], "updated_at": existing.get("updated_at")}, update)
+                if result.matched_count and existing_due != new_due:
                     rescheduled.append({
                         "name": doc["name"],
                         "task": doc["task"],
                         "old_date": existing_due,
                         "new_date": new_due,
                     })
+                if result.matched_count:
+                    existing.update(changes)
                 # else: same date, near-duplicate -> skip
                 matched = True
                 break
@@ -207,7 +239,7 @@ async def _save_extracted_deadlines(
         if not matched:
             for accepted in new_docs:
                 if accepted["user_id"] == doc["user_id"] and accepted["name"] == doc["name"]:
-                    ratio = SequenceMatcher(None, accepted["task"], doc["task"]).ratio()
+                    ratio = _task_similarity(accepted["task"], doc["task"])
                     if ratio >= DEDUPE_SIMILARITY_THRESHOLD:
                         matched = True
                         break

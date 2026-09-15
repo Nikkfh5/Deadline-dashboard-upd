@@ -92,6 +92,16 @@ class TestHaikuAnalyzerNoKey:
 
 
 class TestProviderFallback:
+    @pytest.mark.asyncio
+    async def test_relative_dates_use_post_date_in_moscow(self):
+        from datetime import datetime, timezone
+        from services.haiku_analyzer import HaikuAnalyzer
+        provider = FakeProvider("gemini", ['{"has_deadline": false, "deadlines": []}'])
+        analyzer = HaikuAnalyzer(providers=[provider])
+        await analyzer.analyze_post("ДЗ перенесено на завтра", post_date=datetime(2026, 9, 14, 21, 30, tzinfo=timezone.utc))
+        assert "Сегодня: 2026-09-15" in provider.calls[0]["prompt"]
+        assert "Год: 2026" in provider.calls[0]["prompt"]
+
     def test_default_provider_ranking(self, monkeypatch):
         from services.haiku_analyzer import HaikuAnalyzer
 

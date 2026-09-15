@@ -48,6 +48,7 @@ def setup_handlers(client: TelegramClient):
     _client = client
 
     @client.on(events.NewMessage())
+    @client.on(events.MessageEdited())
     async def on_new_message(event):
         try:
             await _handle_message(event)
@@ -181,7 +182,8 @@ async def _handle_message(event):
 
     # Check if this text was already analyzed — reuse cached Haiku result
     from services.deadline_extractor import content_hash
-    c_hash = content_hash(text)
+    post_date = getattr(event.message, "edit_date", None) or getattr(event.message, "date", None)
+    c_hash = content_hash(text, post_date)
     cached = await db.parsed_posts.find_one({"content_hash": c_hash})
 
     if cached:
@@ -199,6 +201,7 @@ async def _handle_message(event):
             channel_context=profile["context"],
             channel_about=profile["about"],
             known_subjects=profile["known_subjects"],
+            post_date=getattr(event.message, "date", None),
         )
 
         logger.info(f"Haiku result: has_deadline={result.get('has_deadline')}, deadlines={len(result.get('deadlines', []))}, analysis={result.get('analysis', '')[:150]}")
@@ -224,6 +227,7 @@ async def _handle_message(event):
         raw_text=text,
         source_name=source_name,
         source_url=source_url,
+        post_date=post_date,
     )
 
     from services.notifications import send_pending_notifications

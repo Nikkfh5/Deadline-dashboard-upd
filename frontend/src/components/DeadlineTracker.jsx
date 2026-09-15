@@ -133,11 +133,7 @@ const DeadlineTracker = ({ foldersApi }) => {
       const normalized = serverDeadlines
         .map(normalizeServerDeadline)
         .filter(d => !deleted.has(d.id));
-      setDeadlines(prev => {
-        const merged = mergeDeadlines(normalized, prev);
-        if (merged.length === prev.length && merged.every((d, i) => d.id === prev[i]?.id)) return prev;
-        return merged;
-      });
+      setDeadlines(prev => mergeDeadlines(normalized, prev));
     }
   };
   // Keep ref current so the polling interval always calls the latest version
@@ -236,8 +232,7 @@ const DeadlineTracker = ({ foldersApi }) => {
 
   // Helper function to convert Moscow datetime to UTC for storage
   const moscowToUTC = (moscowDateTimeLocal) => {
-    // For simplicity, treat input as local time and convert to UTC
-    return new Date(moscowDateTimeLocal).toISOString();
+    return new Date(`${moscowDateTimeLocal}+03:00`).toISOString();
   };
 
   // Function to handle recurring deadline repetition
@@ -342,8 +337,9 @@ const DeadlineTracker = ({ foldersApi }) => {
       let newDueDate = utcDueDate;
       let newLastStartedAt = editingDeadline.lastStartedAt;
 
-      // If editing a recurring deadline and interval changed, recalculate dueDate
-      if (editingDeadline.isRecurring && formData.isRecurring && intervalChanged) {
+      // Recalculate for interval edits only when the user kept the original due date.
+      if (editingDeadline.isRecurring && formData.isRecurring && intervalChanged &&
+          formData.dueDate === formatDateTimeForInput(editingDeadline.dueDate)) {
         const lastStarted = new Date(editingDeadline.lastStartedAt || editingDeadline.createdAt);
         const intervalMs = currentInterval * 24 * 60 * 60 * 1000;
         newDueDate = new Date(lastStarted.getTime() + intervalMs).toISOString();
@@ -821,7 +817,7 @@ const DeadlineTracker = ({ foldersApi }) => {
                 renderCard={(deadline) => {
                   const timeLeft = calculateTimeLeft(deadline.dueDate);
                   const { progressColor } = getDeadlineMetrics(timeLeft, deadline);
-                  const dueStr = new Date(deadline.dueDate).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit' });
+                  const dueStr = new Date(deadline.dueDate).toLocaleDateString('en-GB', { timeZone: 'Europe/Moscow', day: '2-digit', month: '2-digit' });
                   const accentColor = deadline.isMarked ? '#10b981'
                     : deadline.isImportant ? '#e11d48'
                     : timeLeft.isOverdue ? '#ef4444'

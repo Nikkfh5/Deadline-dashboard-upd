@@ -98,6 +98,8 @@ async def update_deadline(deadline_id: str, data: DeadlineUpdate, token: str = Q
     update_fields = {"updated_at": datetime.utcnow()}
     for field, value in data.model_dump(exclude_unset=True).items():
         update_fields[field] = value
+    if "due_date" in update_fields:
+        update_fields["source_updated_at"] = update_fields["updated_at"]
 
     from pymongo import ReturnDocument
     result = await db.deadlines.find_one_and_update(

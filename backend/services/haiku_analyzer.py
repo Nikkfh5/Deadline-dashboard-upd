@@ -5,7 +5,7 @@ import json
 import logging
 import os
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -16,7 +16,7 @@ TELEGRAM_ANALYSIS_PROMPT = """<role>
 
 <context>
 Сегодня: {today} ({weekday})
-Учебный год: {current_year}
+Год: {current_year}
 Канал: {channel_name}
 {description_block}
 {subjects_block}
@@ -56,6 +56,7 @@ TELEGRAM_ANALYSIS_PROMPT = """<role>
 
 ПЕРЕНОСЫ:
 - "Дедлайн перенесён на 20 апреля" → извлеки НОВУЮ дату. В details укажи старую.
+- Сохраняй краткое название и номер задания в task_name; изменённые условия и пояснение переноса помещай в details.
 
 CONFIDENCE:
 - 0.9+: явная дата + явное задание
@@ -356,11 +357,16 @@ class HaikuAnalyzer:
         raise RuntimeError(f"All LLM providers failed for {operation}: {last_error}")
 
     async def analyze_post(self, text: str, channel_name: str = "", channel_context: str = "",
-                           channel_about: str = "", known_subjects: list = None) -> dict:
+                           channel_about: str = "", known_subjects: list = None,
+                           post_date: Optional[datetime] = None) -> dict:
         if not any(provider.configured for provider in self.providers):
             return {"has_deadline": False, "deadlines": [], "analysis": "API key not configured"}
 
-        current_year = _get_academic_year()
+        now = post_date or datetime.now(timezone.utc)
+        if now.tzinfo is None:
+            now = now.replace(tzinfo=timezone.utc)
+        now = now.astimezone(timezone(timedelta(hours=3)))
+        current_year = now.year
 
         context_block = ""
         if channel_context:
@@ -375,7 +381,6 @@ class HaikuAnalyzer:
         if known_subjects:
             subjects_block = f"Ранее извлечённые предметы из этого канала: {', '.join(known_subjects)}"
 
-        now = datetime.now()
         today = now.strftime("%Y-%m-%d")
         weekday_names = {
             "Monday": "понедельник", "Tuesday": "вторник", "Wednesday": "среда",
