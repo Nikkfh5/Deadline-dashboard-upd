@@ -106,6 +106,7 @@ async def root():
 async def health_check():
     from services.database import get_db
     from telegram_bot.bot import get_bot_app
+    from telegram_userbot.client import get_userbot
     health = {"status": "ok", "timestamp": datetime.utcnow().isoformat(), "services": {}}
 
     try:
@@ -116,7 +117,16 @@ async def health_check():
         health["services"]["mongodb"] = "error"
         health["status"] = "degraded"
 
-    health["services"]["telegram_bot"] = "running" if get_bot_app() else "stopped"
+    bot = get_bot_app()
+    bot_running = bool(bot and bot.running and bot.updater and bot.updater.running)
+    health["services"]["telegram_bot"] = "running" if bot_running else "stopped"
+    userbot = get_userbot()
+    userbot_running = bool(userbot and userbot.is_connected())
+    health["services"]["telegram_userbot"] = (
+        "running" if userbot_running else "disconnected" if userbot else "stopped"
+    )
+    if not bot_running or not userbot_running:
+        health["status"] = "degraded"
 
     return health
 

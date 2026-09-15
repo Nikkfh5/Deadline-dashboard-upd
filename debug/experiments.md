@@ -428,3 +428,33 @@ All 5 remaining E2E tests passed. Recurring repeat fix confirmed in real browser
 - Share codes: PASS
 
 **Status:** DONE
+
+---
+
+## EXP-025 — 2026-09-13 — Bot recovery and full verification
+
+User request: restore channel deadline import, then check all bot functions; do not stop after a restart.
+
+- [x] Compare deployed code with GitHub: both a7a1e92.
+- [x] Establish incident: userbot disconnected, repeated channel join failures; API health does not check userbot. Separate read-only Telegram connection confirms session remains authorized.
+- [x] Baseline backend suite: 51 passed.
+- [x] Restore channel monitoring and verify channel read -> parse -> save.
+- [x] Verify configured LLM providers and failure handling.
+- [x] Check bot commands, add/cancel flow, deadlines, completion/delete, settings, sources, sharing, snapshot and reminders.
+- [x] Check API isolation/CRUD, dashboard rendering and frontend tests/build.
+- [x] Record proven results, remaining failures and any required user action.
+
+Use isolated test data for writes. Do not send messages to real users or post in coursework channels during tests.
+
+Results:
+- Production @deadline_fcs_bot: restored Telethon connection; all 26 active channel subscriptions joined, zero pending. Last stored parsed post before recovery was 2026-06-24; retained logs do not establish the original disconnect time/cause.
+- Fixed recovery in the existing 5-minute channel job and health reporting for the userbot and polling bot. A separate real Telegram connection was disconnected deliberately and successfully restored through the job; production connections were not interrupted for this test.
+- Fixed imported MSK dates being stored as UTC without conversion, and API timestamps missing UTC offsets. Real OMV channel post for 16 September 10:30 MSK now saves 07:30 UTC in isolated QA MongoDB and the browser shows Moscow time correctly.
+- Fixed cross-user completion callbacks and synchronous /cancel callbacks in channel/wiki conversations. Regression tests failed before the fixes and passed after them.
+- Backend: 62 passed using `.venv/Scripts/python.exe -m pytest -p no:pytest_ethereum backend/tests -q`. Local venv supplies Telethon 1.42.0 and Starlette 0.37.2; the shared Python installation had no Telethon and an incompatible Starlette 1.0.0.
+- Isolated MongoDB integration: 37 passed; commands/settings/manual add/source sharing and removal/API CRUD and isolation/completion/reminder dedup/real-post analysis and save/cached history snapshot checked. Telegram output was mocked for isolated handler checks. QA databases were dropped and absence verified.
+- Live Telegram: start/help/dashboard/deadlines/settings/source lists/add/cancel and source-conversation cancellation responded; a reminder was sent only to the automation account and its receipt verified. Natural-language date parsing returned the expected UTC value.
+- Gemini and Haiku parsed a synthetic deadline successfully. Cerebras returned HTTP 402 (payment required); billing was not changed.
+- Wiki auto-import is disabled by existing commit 014a553. Adding/removing wiki sources works, but no hourly wiki job is scheduled; this existing feature choice was preserved.
+- Frontend: 6 tests passed and production build compiled. Current local frontend includes pre-existing uncommitted work; it was not deployed. Existing deployed UI checked with Playwright: create/persistence/MSK display/edit/mark/important/list/canvas/calendar/planning/complete+stats/recurring repeat/delete; mobile screenshot inspected. Completed browser scenarios had no console errors. Immediate reload during optimistic creation can briefly show both local and server cards; a fresh load has one database record.
+- No bulk history replay or migration of historical user deadlines was performed. Actual historical posts were tested in isolated DB; receipt of a newly published coursework post remains a natural-traffic check.

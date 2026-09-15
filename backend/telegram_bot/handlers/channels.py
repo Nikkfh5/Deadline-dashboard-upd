@@ -164,9 +164,12 @@ async def channel_link_received(update: Update, context: ContextTypes.DEFAULT_TY
 
 async def _cancel_add_channel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
-    await query.answer()
     context.user_data.pop("add_channel_user", None)
-    await query.edit_message_text("Добавление канала отменено.")
+    if query:
+        await query.answer()
+        await query.edit_message_text("Добавление канала отменено.")
+    else:
+        await update.message.reply_text("Добавление канала отменено.")
     return ConversationHandler.END
 
 
@@ -250,7 +253,7 @@ def build_add_channel_conversation() -> ConversationHandler:
         },
         fallbacks=[
             CallbackQueryHandler(_cancel_add_channel, pattern=f"^{CANCEL_CB}$"),
-            CommandHandler("cancel", lambda u, c: ConversationHandler.END),
+            CommandHandler("cancel", _cancel_add_channel),
         ],
         allow_reentry=True,
         conversation_timeout=120,

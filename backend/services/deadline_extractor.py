@@ -1,7 +1,7 @@
 import hashlib
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from difflib import SequenceMatcher
 from typing import List, Tuple
 
@@ -65,7 +65,10 @@ async def save_extracted_deadlines(
             continue
 
         try:
-            due_date = datetime.fromisoformat(due_date_str)
+            due_date = datetime.fromisoformat(str(due_date_str).replace("Z", "+00:00"))
+            if due_date.tzinfo is None:
+                due_date = due_date.replace(tzinfo=timezone(timedelta(hours=3)))
+            due_date = due_date.astimezone(timezone.utc).replace(tzinfo=None)
         except (ValueError, TypeError):
             logger.warning(f"Cannot parse due_date: {due_date_str}")
             continue
