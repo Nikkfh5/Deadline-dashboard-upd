@@ -40,7 +40,7 @@ const DeadlineCard = ({ deadline, timeLeft, progressColor, progressPercentage, i
     <Card
       key={deadline.id}
       className={cn(
-        'relative p-6 bg-white dark:bg-slate-800 shadow-md hover:shadow-xl hover:ring-2 hover:ring-slate-300 dark:hover:ring-slate-600 hover:ring-offset-2 dark:hover:ring-offset-slate-900 transition-all duration-200 hover:scale-105 cursor-pointer border',
+        'relative min-w-0 max-w-full p-6 bg-white dark:bg-slate-800 shadow-md hover:shadow-xl hover:ring-2 hover:ring-slate-300 dark:hover:ring-slate-600 hover:ring-offset-2 dark:hover:ring-offset-slate-900 transition-all duration-200 hover:scale-105 cursor-pointer border',
         isManualMode && isManualSelected ? manualSelectedRingColor
           : isPlanningMode ? 'border-blue-300 dark:border-blue-600 ring-1 ring-blue-200 dark:ring-blue-800'
           : 'border-slate-200 dark:border-slate-700',
@@ -201,7 +201,7 @@ const DeadlineCard = ({ deadline, timeLeft, progressColor, progressPercentage, i
         </CircularProgress>
 
         {/* Name and Task */}
-        <div className="text-center">
+        <div className="min-w-0 max-w-full break-words text-center">
           <h3 className={cn(
             'font-semibold text-lg',
             showImportant ? 'text-rose-600 dark:text-rose-300' : 'text-slate-800 dark:text-slate-100'
