@@ -16,7 +16,7 @@ def setup_scheduler():
     global _scheduler
     _scheduler = AsyncIOScheduler()
 
-    _scheduler.add_job(check_manytask_sources, IntervalTrigger(minutes=15),
+    _scheduler.add_job(check_manytask_sources, IntervalTrigger(hours=3),
                        id="manytask", replace_existing=True, max_instances=1)
 
     _scheduler.add_job(
@@ -44,7 +44,7 @@ def setup_scheduler():
     )
 
     _scheduler.start()
-    logger.info("Scheduler started with notifications (1min), channel_join (5min), reminders (10min), manytask (15min) jobs")
+    logger.info("Scheduler started with notifications (1min), channel_join (5min), reminders (10min), manytask (3h) jobs")
 
 
 def shutdown_scheduler():

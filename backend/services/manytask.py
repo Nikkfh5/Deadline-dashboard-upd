@@ -303,4 +303,4 @@ async def check_manytask_sources():
                         # Neither upstream HTML nor cookies belong in logs/API errors.
                         logging.getLogger(__name__).error("Manytask sync failed for source %s", source["_id"])
                         await db.sources.update_one({"_id": source["_id"], "user_id": owner},
-                                                    {"$set": {"last_error": "Ошибка синхронизации. Проверка повторится через 15 минут."}})
+                                                    {"$set": {"last_error": "Ошибка синхронизации. Проверка повторится через 3 часа."}})
