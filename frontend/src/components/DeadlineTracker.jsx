@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { Clock, Plus, Moon, Sun, ChevronDown, ChevronUp, Calendar as CalendarIcon, LayoutGrid, Trash2, CheckCircle2, List, TimerOff, Flag } from 'lucide-react';
 import { Button } from './ui/button';
 import { TooltipProvider } from './ui/tooltip';
@@ -39,6 +40,7 @@ const mergeDeadlines = (serverList, localList) => {
 };
 
 const DeadlineTracker = ({ foldersApi }) => {
+  const { search } = useLocation();
   const folderId = foldersApi?.activeFolderId ?? null;
   const activeFolder = foldersApi?.activeFolder ?? null;
   const [deadlines, setDeadlines] = useState([]);
@@ -567,7 +569,9 @@ const DeadlineTracker = ({ foldersApi }) => {
         <div className="max-w-7xl mx-auto">
           {/* Header */}
           <div className={`flex items-center gap-3 ${isDeleteMenuOpen ? 'mb-36 sm:mb-12' : 'mb-12'}`}>
-            <div className="w-[4.5rem] shrink-0" />
+            <div className="w-[4.5rem] shrink-0">
+              <Link to={`/manytask${search}`} className="text-xs text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100">Manytask</Link>
+            </div>
 
             <h1 className="min-w-0 flex-1 text-center text-3xl sm:text-4xl font-bold text-slate-800 dark:text-slate-100 tracking-wide">DEADLINES</h1>
 

@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 WAITING_WIKI_URL = 0
 
 _REPLY_BUTTONS = frozenset({
-    "Добавить дедлайн", "Добавить канал", "Добавить wiki",
+    "Добавить дедлайн", "Добавить канал", "Добавить wiki", "Добавить Manytask",
     "Мои дедлайны", "Мои источники", "Настройки",
 })
 _TEXT_INPUT = filters.TEXT & ~filters.COMMAND & ~filters.Text(_REPLY_BUTTONS)

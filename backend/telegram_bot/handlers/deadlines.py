@@ -5,12 +5,13 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, CallbackQueryHandler
 
 from services.database import get_db
+from services.deadline_extractor import delete_imported_deadlines
 from telegram_bot.helpers import format_time_left, format_due_short_msk
 from telegram_bot.utils import get_current_user
 
 logger = logging.getLogger(__name__)
 
-SOURCE_ICONS = {"manual": "M", "telegram": "T", "wiki": "W"}
+SOURCE_ICONS = {"manual": "M", "telegram": "T", "wiki": "W", "manytask": "MT"}
 COMPLETE_DEADLINE_CB = "done_dl:"
 DELETE_ALL_CONFIRM_CB = "del_all_confirm"
 DELETE_ALL_CANCEL_CB = "del_all_cancel"
@@ -142,7 +143,7 @@ async def delete_all_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
 
     db = get_db()
-    result = await db.deadlines.delete_many({"user_id": str(user["_id"])})
+    result = await delete_imported_deadlines(db, {"user_id": str(user["_id"])})
     await query.edit_message_text(f"✓ Удалено {result.deleted_count} дедлайн(ов).")
 
 
@@ -163,7 +164,9 @@ async def complete_deadline_button(update: Update, context: ContextTypes.DEFAULT
         await query.answer("Дедлайн не найден", show_alert=True)
         return
 
-    await db.deadlines.delete_one(deadline_filter)
+    result = await delete_imported_deadlines(db, deadline_filter)
+    if not result.deleted_count:
+        return
 
     # Record completion
     from datetime import datetime

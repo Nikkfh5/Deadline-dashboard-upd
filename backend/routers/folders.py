@@ -5,6 +5,7 @@ import uuid
 
 from models.folder import Folder, FolderCreate, FolderUpdate
 from services.database import get_db
+from services.deadline_extractor import delete_imported_deadlines
 from services.auth import get_user_by_token
 
 router = APIRouter(prefix="/api/folders", tags=["folders"])
@@ -133,7 +134,7 @@ async def delete_folder(folder_id: str, token: str = Query(...)):
             )
 
     # Cascade delete content
-    await db.deadlines.delete_many({"user_id": user_id, "folder_id": folder_id})
+    await delete_imported_deadlines(db, {"user_id": user_id, "folder_id": folder_id})
     await db.notes.delete_many({"user_id": user_id, "folder_id": folder_id})
     await db.folders.delete_one({"id": folder_id, "user_id": user_id})
 

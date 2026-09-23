@@ -6,6 +6,7 @@ import uuid
 from models.deadline import Deadline, DeadlineCreate, DeadlineUpdate, DeadlineSource
 from services.database import get_db
 from services.auth import get_user_by_token
+from services.deadline_extractor import delete_imported_deadlines
 
 router = APIRouter(prefix="/api/deadlines", tags=["deadlines"])
 
@@ -123,7 +124,7 @@ async def delete_all_deadlines(token: str = Query(...), folder_id: str = Query(N
     else:
         query = {"user_id": user_id}
 
-    result = await db.deadlines.delete_many(query)
+    result = await delete_imported_deadlines(db, query)
     return {"deleted": result.deleted_count}
 
 
@@ -139,7 +140,7 @@ async def delete_expired_deadlines(token: str = Query(...), folder_id: str = Que
         query = {"user_id": user_id}
 
     query["due_date"] = {"$lt": datetime.utcnow()}
-    result = await db.deadlines.delete_many(query)
+    result = await delete_imported_deadlines(db, query)
     return {"deleted": result.deleted_count}
 
 
@@ -157,9 +158,9 @@ async def delete_deadline(
     if not deadline:
         raise HTTPException(status_code=404, detail="Deadline not found")
 
-    await db.deadlines.delete_one({"id": deadline_id, "user_id": user_id})
+    result = await delete_imported_deadlines(db, {"id": deadline_id, "user_id": user_id})
 
-    if complete:
+    if complete and result.deleted_count:
         await db.completions.insert_one({
             "user_id": user_id,
             "deadline_name": deadline.get("name", ""),

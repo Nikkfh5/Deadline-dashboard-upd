@@ -4,7 +4,7 @@ from typing import Optional
 
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters
 
-from telegram_bot.handlers.start import start_command, help_command, dashboard_command, reply_keyboard_handler, REPLY_KEYBOARD
+from telegram_bot.handlers.start import start_command, help_command, dashboard_command, manytask_command, reply_keyboard_handler, REPLY_KEYBOARD
 from telegram_bot.handlers.channels import remove_channel_command, list_channels_command, build_add_channel_conversation, delete_channel_button, DEL_CHANNEL_CB
 from telegram_bot.handlers.wiki import remove_wiki_command, list_wikis_command, build_add_wiki_conversation, delete_wiki_button, DEL_WIKI_CB
 from telegram_bot.handlers.deadlines import my_deadlines_command, complete_deadline_button, COMPLETE_DEADLINE_CB, delete_all_command, delete_all_callback, DELETE_ALL_CONFIRM_CB, DELETE_ALL_CANCEL_CB
@@ -33,6 +33,7 @@ async def start_bot():
     _app.add_handler(CommandHandler("start", start_command))
     _app.add_handler(CommandHandler("help", help_command))
     _app.add_handler(CommandHandler("dashboard", dashboard_command))
+    _app.add_handler(CommandHandler("add_manytask", manytask_command))
     _app.add_handler(CommandHandler("remove_channel", remove_channel_command))
     _app.add_handler(CommandHandler("list_channels", list_channels_command))
     _app.add_handler(CommandHandler("remove_wiki", remove_wiki_command))
@@ -56,7 +57,7 @@ async def start_bot():
     ), group=1)
 
     # Reply keyboard buttons — must be LAST to not intercept conversation text
-    KEYBOARD_TEXTS = {"Мои дедлайны", "Мои источники", "Дашборд", "Настройки"}
+    KEYBOARD_TEXTS = {"Мои дедлайны", "Мои источники", "Дашборд", "Настройки", "Добавить Manytask"}
     _app.add_handler(MessageHandler(
         filters.TEXT & filters.Regex(f"^({'|'.join(KEYBOARD_TEXTS)})$"),
         reply_keyboard_handler,
@@ -72,6 +73,7 @@ async def start_bot():
         ("deleteall", "Удалить все дедлайны"),
         ("add_channel", "Добавить TG канал"),
         ("add_wiki", "Добавить wiki"),
+        ("add_manytask", "Подключить Manytask"),
         ("remove_channel", "Удалить канал"),
         ("remove_wiki", "Удалить wiki"),
         ("dashboard", "Открыть дашборд"),

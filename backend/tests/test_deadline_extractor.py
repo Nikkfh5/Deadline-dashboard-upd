@@ -11,6 +11,82 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 @pytest.mark.asyncio
+async def test_manytask_exact_groups_ignore_fuzzy_matches_and_deleted_groups(monkeypatch):
+    from services import deadline_extractor
+    from bson import ObjectId
+    source_id = str(ObjectId())
+    existing = {"_id": "old", "user_id": "a", "name": "Python", "task": "01.2.BasicTypes",
+                "source": {"type": "manytask", "source_id": source_id, "external_id": "01.2.BasicTypes"},
+                "due_date": datetime(2026, 10, 1), "updated_at": datetime(2026, 9, 1)}
+    db = SimpleNamespace(
+        sources=SimpleNamespace(find_one=AsyncMock(return_value={"ignored_groups": ["01.1.PythonTools"]})),
+        deadlines=SimpleNamespace(find=Mock(return_value=SimpleNamespace(to_list=AsyncMock(return_value=[existing]))),
+                                  insert_many=AsyncMock(), update_one=AsyncMock()))
+    monkeypatch.setattr(deadline_extractor, "get_db", lambda: db)
+    extracted = [{"external_id": name, "subject": "Python", "task_name": name,
+                  "due_date": "2026-10-02T00:00:00Z", "confidence": 1.0}
+                 for name in ["01.2.BasicTypes", "01.2.BasicTypes_hard", "01.1.PythonTools"]]
+    count, moved = await deadline_extractor.save_extracted_deadlines(
+        ["a"], extracted, source_id, "manytask", "https://app.manytask.org/python/", source_name="Manytask")
+    assert count == 1 and len(moved) == 1
+    inserted = db.deadlines.insert_many.call_args.args[0]
+    assert inserted[0]["source"]["external_id"] == "01.2.BasicTypes_hard"
+    assert db.sources.find_one.call_args.args[0] == {
+        "_id": ObjectId(source_id), "user_id": "a", "type": "manytask_course", "is_active": True}
+    assert "source" in db.deadlines.find.call_args.args[1]
+
+
+@pytest.mark.asyncio
+async def test_manytask_disabled_source_cannot_import_after_inflight_fetch(monkeypatch):
+    from services import deadline_extractor
+    from bson import ObjectId
+    db = SimpleNamespace(sources=SimpleNamespace(find_one=AsyncMock(return_value=None)))
+    monkeypatch.setattr(deadline_extractor, "get_db", lambda: db)
+    assert await deadline_extractor.save_extracted_deadlines(
+        ["a"], [{"external_id": "hw"}], str(ObjectId()), "manytask", "url") == (0, [])
+
+
+@pytest.mark.asyncio
+async def test_manytask_concurrent_edit_requires_retry_instead_of_acknowledging_snapshot(monkeypatch):
+    from services import deadline_extractor
+    from services.manytask import ManytaskError
+    from bson import ObjectId
+    sid = str(ObjectId())
+    existing = {"_id": "old", "user_id": "a", "name": "Python", "task": "hw",
+                "source": {"type": "manytask", "source_id": sid, "external_id": "hw"},
+                "due_date": datetime(2026, 10, 1), "updated_at": datetime(2026, 9, 1)}
+    db = SimpleNamespace(
+        sources=SimpleNamespace(find_one=AsyncMock(return_value={})),
+        deadlines=SimpleNamespace(find=Mock(return_value=SimpleNamespace(to_list=AsyncMock(return_value=[existing]))),
+                                  update_one=AsyncMock(return_value=SimpleNamespace(matched_count=0))))
+    db.sources.find_one.return_value = {"is_active": True}
+    monkeypatch.setattr(deadline_extractor, "get_db", lambda: db)
+    with pytest.raises(ManytaskError):
+        await deadline_extractor.save_extracted_deadlines(
+            ["a"], [{"external_id": "hw", "subject": "Python", "task_name": "hw", "confidence": 1,
+                     "due_date": "2026-10-02T00:00:00Z"}], sid, "manytask", "url")
+
+
+@pytest.mark.asyncio
+async def test_deleting_manytask_deadline_remembers_group_before_removing_card():
+    from services.deadline_extractor import delete_imported_deadlines
+    from bson import ObjectId
+    sid = ObjectId()
+    calls = []
+    async def suppress(*args): calls.append(("suppress", args))
+    async def remove(*args): calls.append(("delete", args)); return SimpleNamespace(deleted_count=1)
+    docs = [{"user_id": "a", "source": {"source_id": str(sid), "external_id": "hw"}}]
+    db = SimpleNamespace(
+        sources=SimpleNamespace(update_one=AsyncMock(side_effect=suppress)),
+        deadlines=SimpleNamespace(find=Mock(return_value=SimpleNamespace(to_list=AsyncMock(return_value=docs))),
+                                  delete_many=AsyncMock(side_effect=remove)))
+    await delete_imported_deadlines(db, {"id": "card", "user_id": "a"})
+    assert [call[0] for call in calls] == ["suppress", "delete"]
+    assert calls[0][1][0] == {"_id": sid, "user_id": "a"}
+    assert calls[0][1][1] == {"$addToSet": {"ignored_groups": "hw"}}
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("due", ["2026-09-16T10:30:00", "2026-09-16T10:30:00+03:00", "2026-09-16T07:30:00Z"])
 async def test_extracted_deadline_is_stored_in_utc(monkeypatch, due):
     from services import deadline_extractor

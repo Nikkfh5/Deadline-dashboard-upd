@@ -72,3 +72,15 @@ async def test_source_conversation_cancel_is_async_and_clears_state(kind):
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+@pytest.mark.asyncio
+async def test_manytask_command_opens_personal_web_form(monkeypatch):
+    from telegram_bot.handlers import start
+    monkeypatch.setattr(start, "get_current_user", AsyncMock(return_value={"dashboard_token": "test-token"}))
+    monkeypatch.setenv("FRONTEND_URL", "https://dashboard.test/")
+    update = SimpleNamespace(message=SimpleNamespace(reply_text=AsyncMock()))
+    await start.manytask_command(update, None)
+    text = update.message.reply_text.call_args.args[0]
+    assert "https://dashboard.test/manytask?token=test-token" in text
+    assert "пароль" not in text.lower()
