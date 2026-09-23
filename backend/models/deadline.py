@@ -10,9 +10,10 @@ def strip_html_tags(value: str) -> str:
 
 
 class DeadlineSource(BaseModel):
-    type: str = "manual"  # "manual" | "telegram" | "wiki"
+    type: str = "manual"  # "manual" | "telegram" | "wiki" | "manytask"
     source_id: Optional[str] = None
     original_text: Optional[str] = None
+    external_id: Optional[str] = None
 
 
 class DeadlineCreate(BaseModel):

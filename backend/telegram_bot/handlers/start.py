@@ -1,6 +1,7 @@
 import logging
 import os
 import uuid
+from html import escape
 from datetime import datetime
 
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
@@ -29,7 +30,11 @@ async def _show_all_sources(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "user_id": user_id, "type": "wiki_page", "is_active": True,
     }).to_list(100)
 
-    if not channels and not wikis:
+    manytask_sources = await db.sources.find({
+        "user_id": user_id, "type": "manytask_course", "is_active": True,
+    }).to_list(100)
+
+    if not channels and not wikis and not manytask_sources:
         await update.message.reply_text("Нет отслеживаемых источников.")
         return
 
@@ -61,6 +66,15 @@ async def _show_all_sources(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 lines.append(f"• {name}")
 
+    if manytask_sources:
+        lines.append("\n<b>Manytask:</b>\n")
+        for source in manytask_sources:
+            name = escape(source.get("display_name", source["identifier"]))
+            lines.append(f'• <a href="{escape(source["identifier"], quote=True)}">{name}</a>')
+            if source.get("last_error"):
+                lines.append(f'  {escape(source["last_error"])}')
+        lines.append("Подключение и отключение: /add_manytask")
+
     await update.message.reply_text(
         "\n".join(lines), parse_mode="HTML", disable_web_page_preview=True
     )
@@ -70,6 +84,7 @@ REPLY_KEYBOARD = ReplyKeyboardMarkup(
     [
         [KeyboardButton("Добавить дедлайн"), KeyboardButton("Мои дедлайны")],
         [KeyboardButton("Добавить канал"), KeyboardButton("Добавить wiki")],
+        [KeyboardButton("Добавить Manytask")],
         [KeyboardButton("Мои источники"), KeyboardButton("Настройки")],
     ],
     resize_keyboard=True,
@@ -94,6 +109,17 @@ async def reply_keyboard_handler(update: Update, context: ContextTypes.DEFAULT_T
         await settings_command(update, context)
     elif text == "Дашборд":
         await dashboard_command(update, context)
+    elif text == "Добавить Manytask":
+        await manytask_command(update, context)
+
+
+async def manytask_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = await get_current_user(update)
+    if not user:
+        return
+    url = os.environ.get("FRONTEND_URL", "http://localhost:3000").rstrip("/")
+    await update.message.reply_text(
+        f"Подключить личный аккаунт и курсы Manytask:\n{url}/manytask?token={user['dashboard_token']}")
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -128,7 +154,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(
         f"Привет, {user.first_name}!\n\n"
-        f"Я помогу отслеживать дедлайны из Telegram-каналов и вики.\n\n"
+        f"Я помогу отслеживать дедлайны из Telegram-каналов, вики и Manytask.\n\n"
         f"Твой дашборд: {dashboard_link}",
         reply_markup=REPLY_KEYBOARD,
     )
@@ -140,6 +166,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/add — добавить дедлайн\n"
         "/add_channel — добавить канал\n"
         "/add_wiki — добавить wiki\n"
+        "/add_manytask — подключить Manytask\n"
         "/my_deadlines — дедлайны\n"
         "/dashboard — ссылка на дашборд\n"
         "/share — поделиться\n"

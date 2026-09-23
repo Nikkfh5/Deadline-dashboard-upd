@@ -2,6 +2,7 @@ import React from "react";
 import "./App.css";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import DeadlineTracker from "./components/DeadlineTracker";
+import ManytaskPage from "./components/ManytaskPage";
 import { useFolders } from "./hooks/useFolders";
 
 function Workspace() {
@@ -15,6 +16,7 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Workspace />} />
+          <Route path="/manytask" element={<ManytaskPage />} />
         </Routes>
       </BrowserRouter>
     </div>

@@ -5,6 +5,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from difflib import SequenceMatcher
 from typing import List, Optional, Tuple
+from bson import ObjectId
 
 from models.deadline import strip_html_tags
 from services.database import get_db
@@ -31,6 +32,27 @@ def _task_similarity(left: str, right: str) -> float:
         return 0
     left, right = (re.sub(r"[^\w]", "", task) for task in (left, right))
     return SequenceMatcher(None, left, right).ratio()
+
+
+def _deadline_similarity(left, right):
+    a, b = left.get("source", {}), right.get("source", {})
+    if "manytask" in {a.get("type"), b.get("type")}:
+        return float(all(a.get(key) == b.get(key) for key in ("type", "source_id", "external_id")))
+    return _task_similarity(left["task"], right["task"])
+
+
+async def delete_imported_deadlines(db, query):
+    """Remember user removals before deletion so polling cannot resurrect them."""
+    from services.notifications import delivery_lock
+    async with delivery_lock:
+        docs = await db.deadlines.find({**query, "source.type": "manytask"}).to_list(None)
+        for doc in docs:
+            source = doc["source"]
+            await db.sources.update_one(
+                {"_id": ObjectId(source["source_id"]), "user_id": doc["user_id"]},
+                {"$addToSet": {"ignored_groups": source["external_id"]}},
+            )
+        return await db.deadlines.delete_many(query)
 
 
 async def save_extracted_deadlines(
@@ -70,13 +92,24 @@ async def _save_extracted_deadlines(
     c_hash = content_hash(raw_text, post_date)
 
     # Check if this text was already analyzed (by any source) — reuse cached result
-    cached = await db.parsed_posts.find_one({"content_hash": c_hash})
+    cached = None
+    if source_type == "manytask":
+        # Structured, user-scoped input must not use the shared text/LLM cache.
+        source = await db.sources.find_one({
+            "_id": ObjectId(source_id), "user_id": user_ids[0],
+            "type": "manytask_course", "is_active": True,
+        })
+        if not source:
+            return 0, []
+        extracted = [d for d in extracted if d["external_id"] not in source.get("ignored_groups", [])]
+    else:
+        cached = await db.parsed_posts.find_one({"content_hash": c_hash})
     if cached:
         # Reuse cached Haiku result instead of the new extraction
         extracted = cached.get("extracted_deadlines", [])
         if not extracted:
             return 0, []
-    else:
+    elif source_type != "manytask":
         await db.parsed_posts.insert_one({
             "source_id": source_id,
             "content_hash": c_hash,
@@ -140,6 +173,8 @@ async def _save_extracted_deadlines(
                 "is_postponed": False,
                 "previous_due_date": None,
             })
+            if source_type == "manytask":
+                docs_to_insert[-1]["source"]["external_id"] = deadline_data["external_id"]
             if source_name:
                 docs_to_insert[-1]["notifications"] = [{
                     "id": f"{notification_batch}:new:{user_id}",
@@ -168,17 +203,19 @@ async def _save_extracted_deadlines(
             seen_keys.add(key_tuple)
             unique_dedup_keys.append(k)
 
+    existing_query = ({"user_id": user_ids[0], "source.type": "manytask", "source.source_id": source_id}
+                      if source_type == "manytask" else {"$or": unique_dedup_keys})
     existing_deadlines = await db.deadlines.find(
-        {"$or": unique_dedup_keys},
+        existing_query,
         {"user_id": 1, "name": 1, "task": 1, "due_date": 1, "_id": 1,
-         "source_updated_at": 1, "updated_at": 1},
-    ).to_list(1000)
+         "source_updated_at": 1, "updated_at": 1, "source": 1},
+    ).to_list(None if source_type == "manytask" else 1000)
 
     # Group existing deadlines by (user_id, name) for fast lookup
     from collections import defaultdict
     existing_by_user_name = defaultdict(list)
     for ed in existing_deadlines:
-        existing_by_user_name[(ed["user_id"], ed["name"])].append(ed)
+        existing_by_user_name[(ed["user_id"], "" if source_type == "manytask" else ed["name"])].append(ed)
 
     new_docs = []
     rescheduled = []
@@ -186,12 +223,12 @@ async def _save_extracted_deadlines(
 
     for doc in docs_to_insert:
         candidates = sorted(
-            existing_by_user_name.get((doc["user_id"], doc["name"]), []),
-            key=lambda existing: _task_similarity(existing["task"], doc["task"]), reverse=True)
+            existing_by_user_name.get((doc["user_id"], "" if source_type == "manytask" else doc["name"]), []),
+            key=lambda existing: _deadline_similarity(existing, doc), reverse=True)
         matched = False
 
         for existing in candidates:
-            ratio = _task_similarity(existing["task"], doc["task"])
+            ratio = _deadline_similarity(existing, doc)
             if ratio >= DEDUPE_SIMILARITY_THRESHOLD:
                 # Fuzzy match found
                 existing_due = existing["due_date"]
@@ -222,6 +259,9 @@ async def _save_extracted_deadlines(
                         }}
                 result = await db.deadlines.update_one(
                     {"_id": existing["_id"], "updated_at": existing.get("updated_at")}, update)
+                if source_type == "manytask" and not result.matched_count:
+                    from services.manytask import ManytaskError
+                    raise ManytaskError("Карточка изменилась во время импорта. Синхронизация повторится.")
                 if result.matched_count and existing_due != new_due:
                     rescheduled.append({
                         "name": doc["name"],
@@ -239,7 +279,7 @@ async def _save_extracted_deadlines(
         if not matched:
             for accepted in new_docs:
                 if accepted["user_id"] == doc["user_id"] and accepted["name"] == doc["name"]:
-                    ratio = _task_similarity(accepted["task"], doc["task"])
+                    ratio = _deadline_similarity(accepted, doc)
                     if ratio >= DEDUPE_SIMILARITY_THRESHOLD:
                         matched = True
                         break

@@ -260,3 +260,43 @@ export async function fetchStats() {
 export function hasToken() {
   return !!getToken();
 }
+
+function manytaskError(error) {
+  const detail = error.response?.data?.detail;
+  return new Error(typeof detail === 'string' ? detail : 'Не удалось связаться с Manytask. Попробуйте ещё раз.');
+}
+
+function manytaskToken() {
+  const token = getToken();
+  if (!token) throw new Error('Откройте панель по ссылке из Telegram.');
+  return token;
+}
+
+export async function fetchManytaskStatus() {
+  const token = manytaskToken();
+  try {
+    const response = await api.get('/sources/manytask', { params: { token } });
+    return response.data;
+  } catch (error) {
+    throw manytaskError(error);
+  }
+}
+
+export async function connectManytask(data) {
+  const token = manytaskToken();
+  try {
+    const response = await api.post('/sources/manytask', data, { params: { token }, timeout: 60000 });
+    return response.data;
+  } catch (error) {
+    throw manytaskError(error);
+  }
+}
+
+export async function disconnectManytask(sourceId) {
+  const token = manytaskToken();
+  try {
+    await api.delete(`/sources/${encodeURIComponent(sourceId)}`, { params: { token } });
+  } catch (error) {
+    throw manytaskError(error);
+  }
+}

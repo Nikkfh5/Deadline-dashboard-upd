@@ -2,6 +2,8 @@
 import os
 import sys
 from datetime import datetime
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 import starlette.routing
@@ -34,6 +36,9 @@ class _FakeDeadlines:
     def __init__(self, deleted_count=2):
         self.deleted_count = deleted_count
         self.delete_query = None
+
+    def find(self, query):
+        return SimpleNamespace(to_list=AsyncMock(return_value=[]))
 
     async def delete_many(self, query):
         self.delete_query = query
