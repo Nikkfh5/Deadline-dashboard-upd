@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Clock, Plus, Moon, Sun, ChevronDown, ChevronUp, Calendar as CalendarIcon, LayoutGrid, Trash2, CheckCircle2, List, TimerOff, Flag } from 'lucide-react';
+import { Clock, Plus, Moon, Sun, ChevronDown, ChevronUp, Calendar as CalendarIcon, LayoutGrid, Trash2, CheckCircle2, List, TimerOff, Flag, BookOpen } from 'lucide-react';
 import { Button } from './ui/button';
 import { TooltipProvider } from './ui/tooltip';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
@@ -568,14 +568,18 @@ const DeadlineTracker = ({ foldersApi }) => {
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 p-6 transition-colors">
         <div className="max-w-7xl mx-auto">
           {/* Header */}
-          <div className={`flex items-center gap-3 ${isDeleteMenuOpen ? 'mb-36 sm:mb-12' : 'mb-12'}`}>
-            <div className="w-[4.5rem] shrink-0">
-              <Link to={`/manytask${search}`} className="text-xs text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100">Manytask</Link>
-            </div>
+          <div className={`grid grid-cols-[1fr_auto] items-center gap-3 md:grid-cols-[10.5rem_minmax(0,1fr)_10.5rem] ${isDeleteMenuOpen ? 'mb-36 sm:mb-12' : 'mb-12'}`}>
+            <Link
+              to={`/manytask${search}`}
+              className="col-start-1 row-start-2 inline-flex w-fit items-center gap-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-900 transition-colors hover:bg-sky-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-200 dark:hover:bg-sky-900/50 md:row-start-1"
+            >
+              <BookOpen className="h-4 w-4 shrink-0" />
+              Курсы Manytask
+            </Link>
 
-            <h1 className="min-w-0 flex-1 text-center text-3xl sm:text-4xl font-bold text-slate-800 dark:text-slate-100 tracking-wide">DEADLINES</h1>
+            <h1 className="col-span-2 row-start-1 min-w-0 text-center text-3xl font-bold tracking-wide text-slate-800 dark:text-slate-100 md:col-span-1 md:col-start-2 md:text-4xl">DEADLINES</h1>
 
-            <div className="w-[4.5rem] shrink-0 flex justify-end items-center gap-1">
+            <div className="col-start-2 row-start-2 flex items-center justify-end gap-1 md:col-start-3 md:row-start-1">
               <DropdownMenu open={isDeleteMenuOpen} onOpenChange={setIsDeleteMenuOpen}>
                 <div onMouseEnter={() => deadlines.length > 0 && setIsDeleteMenuOpen(true)}>
                   <DropdownMenuTrigger asChild>
