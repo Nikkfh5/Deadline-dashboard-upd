@@ -4,6 +4,8 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pytest
+import httpx
+import json
 from services.haiku_analyzer import _get_academic_year, TELEGRAM_ANALYSIS_PROMPT, WIKI_ANALYSIS_PROMPT
 
 
@@ -116,7 +118,6 @@ class TestProviderFallback:
         assert [provider.name for provider in analyzer.providers] == [
             "gemini",
             "groq",
-            "cerebras",
             "haiku",
         ]
 
@@ -158,6 +159,56 @@ class TestProviderFallback:
         assert result.day == 22
         assert gemini.calls == []
         assert len(groq.calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_flash_lite_quota_falls_back_to_groq_without_paid_request(monkeypatch):
+    from services import haiku_analyzer
+
+    monkeypatch.delenv("LLM_PROVIDER_ORDER", raising=False)
+    monkeypatch.delenv("GROQ_MODEL", raising=False)
+    monkeypatch.delenv("GEMINI_MODEL", raising=False)
+    for name in ("GROQ_API_KEY", "GEMINI_API_KEY"):
+        monkeypatch.setenv(name, "test-key")
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setattr(haiku_analyzer, "MAX_API_RETRIES", 1)
+    requests = []
+
+    def respond(request):
+        requests.append(request)
+        if request.url.host == "generativelanguage.googleapis.com":
+            return httpx.Response(429, json={"error": {"message": "Quota exceeded"}})
+        return httpx.Response(200, json={"choices": [{"message": {
+            "content": '{"parsed": true, "date": "2026-10-04T23:59:00"}'
+        }}]})
+
+    client_type = httpx.AsyncClient
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **kwargs: client_type(
+        transport=httpx.MockTransport(respond), **kwargs,
+    ))
+    providers = haiku_analyzer._build_default_providers()
+    paid = FakeProvider("haiku", [])
+    analyzer = haiku_analyzer.HaikuAnalyzer(providers=[
+        *[p for p in providers if p.name in ("gemini", "groq")], paid,
+    ])
+    result = await analyzer.parse_date("4 октября 23:59")
+
+    assert result.isoformat() == "2026-10-04T20:59:00"
+    assert len(requests) == 2
+    assert paid.calls == []
+    gemini, groq = requests
+    assert gemini.url.path.endswith("/gemini-3.5-flash-lite:generateContent")
+    assert json.loads(gemini.content)["generationConfig"] == {
+        "maxOutputTokens": 256,
+        "responseMimeType": "application/json",
+        "thinkingConfig": {"thinkingLevel": "minimal"},
+    }
+    assert groq.url.host == "api.groq.com"
+    payload = json.loads(groq.content)
+    assert payload["model"] == "openai/gpt-oss-120b"
+    assert payload["reasoning_effort"] == "low"
+    assert payload["include_reasoning"] is False
+    assert payload["response_format"] == {"type": "json_object"}
 
 
 if __name__ == "__main__":
