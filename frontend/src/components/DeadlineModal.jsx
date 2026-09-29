@@ -33,7 +33,7 @@ const DeadlineModal = ({ isOpen, onOpenChange, editingDeadline, formData, setFor
               id="name"
               value={formData.name}
               onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-              placeholder="Enter person's name"
+              placeholder="Course, project, or deadline name"
               className="mt-1"
             />
           </div>
