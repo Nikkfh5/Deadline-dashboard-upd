@@ -148,7 +148,7 @@ DATE_PARSE_PROMPT = """Пользователь вводит дату/время
 
 
 MAX_API_RETRIES = 3
-DEFAULT_PROVIDER_ORDER = ("gemini", "groq", "cerebras", "haiku")
+DEFAULT_PROVIDER_ORDER = ("gemini", "groq", "haiku")
 
 
 class GeminiProvider:
@@ -157,7 +157,7 @@ class GeminiProvider:
     def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None,
                  base_url: Optional[str] = None):
         self.api_key = api_key or os.environ.get("GEMINI_API_KEY", "")
-        self.model = model or os.environ.get("GEMINI_MODEL", "gemini-3.8-flash")
+        self.model = model or os.environ.get("GEMINI_MODEL", "gemini-3.5-flash-lite")
         self.base_url = (base_url or os.environ.get(
             "GEMINI_BASE_URL",
             "https://generativelanguage.googleapis.com/v1beta",
@@ -174,12 +174,15 @@ class GeminiProvider:
                 }
             ],
             "generationConfig": {
-                "temperature": 0,
                 "maxOutputTokens": max_tokens,
                 "responseMimeType": "application/json",
-                "thinkingConfig": {"thinkingBudget": 0},
+                "thinkingConfig": {"thinkingLevel": "minimal"},
             },
         }
+        if not self.model.startswith("gemini-3."):
+            payload["generationConfig"].update(
+                temperature=0, thinkingConfig={"thinkingBudget": 0},
+            )
         headers = {"x-goog-api-key": self.api_key}
 
         async with httpx.AsyncClient(timeout=60) as client:
@@ -260,8 +263,9 @@ def _build_default_providers(api_key: Optional[str] = None) -> list:
         "groq": OpenAICompatibleProvider(
             name="groq",
             api_key=os.environ.get("GROQ_API_KEY", ""),
-            model=os.environ.get("GROQ_MODEL", "qwen/qwen3-32b"),
+            model=os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b"),
             base_url=os.environ.get("GROQ_BASE_URL", "https://api.groq.com/openai/v1"),
+            extra_payload={"reasoning_effort": "low", "include_reasoning": False},
         ),
         "cerebras": OpenAICompatibleProvider(
             name="cerebras",

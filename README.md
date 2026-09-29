@@ -83,11 +83,11 @@ TELEGRAM_BOT_TOKEN=123456:ABC-DEF...        # от @BotFather
 TELEGRAM_API_ID=12345678                     # от my.telegram.org
 TELEGRAM_API_HASH=abc123def456               # от my.telegram.org
 TELEGRAM_SESSION_STRING=                     # сгенерируй на шаге 3
-LLM_PROVIDER_ORDER=gemini,groq,cerebras,haiku # порядок fallback для AI-парсинга
+LLM_PROVIDER_ORDER=gemini,groq,haiku         # порядок fallback для AI-парсинга
 GEMINI_API_KEY=                              # Google AI Studio, optional
-GEMINI_MODEL=gemini-3.8-flash
+GEMINI_MODEL=gemini-3.5-flash-lite
 GROQ_API_KEY=                                # GroqCloud, optional
-GROQ_MODEL=qwen/qwen3-32b
+GROQ_MODEL=openai/gpt-oss-120b
 CEREBRAS_API_KEY=                            # Cerebras Inference, optional
 CEREBRAS_MODEL=gpt-oss-120b
 ANTHROPIC_API_KEY=sk-ant-...                 # Claude Haiku fallback, optional
@@ -96,13 +96,18 @@ FRONTEND_URL=http://localhost:3000           # URL дашборда для сс�
 ```
 
 Local API secrets should go into ignored `backend/.env.local`; it is loaded after
-`backend/.env` and overrides matching values. For the current no-Groq setup:
+`backend/.env` and overrides matching values. For example:
 
 ```env
-LLM_PROVIDER_ORDER=gemini,cerebras,haiku
+LLM_PROVIDER_ORDER=gemini,groq,haiku
 GEMINI_API_KEY=...
-CEREBRAS_API_KEY=...
+GEMINI_MODEL=gemini-3.5-flash-lite
+GROQ_API_KEY=...
+GROQ_MODEL=openai/gpt-oss-120b
 ```
+
+Providers without keys are skipped. Haiku is the paid last resort; omit `haiku`
+from `LLM_PROVIDER_ORDER` to use only the free providers.
 
 ### 3. Сгенерируй Telethon-сессию
 
