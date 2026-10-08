@@ -182,7 +182,8 @@ async def _handle_message(event):
 
     # Check if this text was already analyzed — reuse cached Haiku result
     from services.deadline_extractor import content_hash
-    post_date = getattr(event.message, "edit_date", None) or getattr(event.message, "date", None)
+    # Unchanged text keeps its cache entry across edits, including link previews.
+    post_date = getattr(event.message, "date", None)
     c_hash = content_hash(text, post_date)
     cached = await db.parsed_posts.find_one({"content_hash": c_hash})
 
@@ -228,6 +229,7 @@ async def _handle_message(event):
         source_name=source_name,
         source_url=source_url,
         post_date=post_date,
+        source_updated_at=getattr(event.message, "edit_date", None) or post_date,
     )
 
     from services.notifications import send_pending_notifications
