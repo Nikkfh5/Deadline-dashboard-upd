@@ -64,13 +64,14 @@ async def save_extracted_deadlines(
     source_name: Optional[str] = None,
     source_url: Optional[str] = None,
     post_date: Optional[datetime] = None,
+    source_updated_at: Optional[datetime] = None,
 ) -> Tuple[int, List[dict]]:
     # A sender must not observe half a post, and concurrent imports must dedupe.
     from services.notifications import delivery_lock
 
     async with delivery_lock:
         return await _save_extracted_deadlines(
-            user_ids, extracted, source_id, source_type, raw_text, source_name, source_url, post_date)
+            user_ids, extracted, source_id, source_type, raw_text, source_name, source_url, post_date, source_updated_at)
 
 
 async def _save_extracted_deadlines(
@@ -82,6 +83,7 @@ async def _save_extracted_deadlines(
     source_name: Optional[str] = None,
     source_url: Optional[str] = None,
     post_date: Optional[datetime] = None,
+    source_updated_at: Optional[datetime] = None,
 ) -> Tuple[int, List[dict]]:
     """Save extracted deadlines to DB for given users.
 
@@ -122,7 +124,7 @@ async def _save_extracted_deadlines(
     # Prepare all valid deadlines
     docs_to_insert = []
     now = datetime.utcnow()
-    source_updated_at = post_date or (cached or {}).get("processed_at") or now
+    source_updated_at = source_updated_at or post_date or (cached or {}).get("processed_at") or now
     if source_updated_at.tzinfo is not None:
         source_updated_at = source_updated_at.astimezone(timezone.utc).replace(tzinfo=None)
     notification_batch = str(uuid.uuid4())

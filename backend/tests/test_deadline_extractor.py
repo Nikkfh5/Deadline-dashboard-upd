@@ -171,7 +171,8 @@ async def test_reschedule_identity_and_source_order(
     count, moved = await deadline_extractor.save_extracted_deadlines(
         ["user"], [{"subject": "Math", "task_name": new_task, "details": details,
                     "due_date": "2026-09-27T23:59:00", "confidence": .95}],
-        "source", "telegram", "New post", post_date=datetime(2026, 9, post_day, tzinfo=timezone.utc))
+        "source", "telegram", "New post", post_date=datetime(2026, 9, 1, tzinfo=timezone.utc),
+        source_updated_at=datetime(2026, 9, post_day, tzinfo=timezone.utc))
     assert (count, len(moved)) == (expected_new, expected_moved)
     if expected_moved:
         changes = db.deadlines.update_one.call_args.args[1]["$set"]
@@ -202,6 +203,34 @@ async def test_replaying_cached_old_post_does_not_roll_date_back(monkeypatch):
 def test_cache_separates_same_relative_text_from_different_posts():
     from services.deadline_extractor import content_hash
     assert content_hash("ДЗ до завтра", datetime(2026, 9, 15)) != content_hash("ДЗ до завтра", datetime(2026, 9, 16))
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("task_name", ["Вторая домашка", "Домашняя работа 2"])
+async def test_unchanged_edit_reuses_extraction_without_duplicate_notification(monkeypatch, task_name):
+    from services import deadline_extractor
+    published = datetime(2026, 10, 8, 6, 12, 49, tzinfo=timezone.utc)
+    edited = datetime(2026, 10, 8, 6, 14, 6, tzinfo=timezone.utc)
+    cached = [{"subject": "МО-2", "task_name": "Вторая домашка",
+               "due_date": "2026-10-25T23:59:00", "confidence": .95}]
+    existing = {"_id": "old", "user_id": "user", "name": "МО-2", "task": "Вторая домашка",
+                "due_date": datetime(2026, 10, 25, 20, 59), "source_updated_at": published.replace(tzinfo=None)}
+    db = SimpleNamespace(
+        parsed_posts=SimpleNamespace(find_one=AsyncMock(return_value={"extracted_deadlines": cached})),
+        deadlines=SimpleNamespace(
+            find=Mock(return_value=SimpleNamespace(to_list=AsyncMock(return_value=[existing]))),
+            insert_many=AsyncMock(), update_one=AsyncMock()))
+    monkeypatch.setattr(deadline_extractor, "get_db", lambda: db)
+    extracted = [{**cached[0], "subject": "МО", "task_name": task_name}]
+    assert await deadline_extractor.save_extracted_deadlines(
+        ["user"], extracted, "source", "telegram", "Вторая домашка до 25.10.2026",
+        source_name="МО-2", post_date=published, source_updated_at=edited) == (0, [])
+    assert db.parsed_posts.find_one.call_args.args[0] == {
+        "content_hash": deadline_extractor.content_hash("Вторая домашка до 25.10.2026", published)}
+    db.deadlines.insert_many.assert_not_awaited()
+    update = db.deadlines.update_one.call_args.args[1]
+    assert update["$set"]["source_updated_at"] == edited.replace(tzinfo=None)
+    assert "$push" not in update
 
 
 @pytest.mark.asyncio

@@ -1,6 +1,7 @@
 """Regression tests for a disconnected channel reader hidden by a healthy API."""
 import os
 import sys
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
@@ -65,8 +66,10 @@ async def test_import_carries_original_message_link(monkeypatch, channel_id, use
 
     user_id = ObjectId()
     chat = Mock(spec=Channel, id=channel_id, username=username, title="Course chat")
+    published = datetime(2026, 10, 8, 6, 12, 49, tzinfo=timezone.utc)
+    edited = datetime(2026, 10, 8, 6, 14, 6, tzinfo=timezone.utc)
     event = SimpleNamespace(get_chat=AsyncMock(return_value=chat),
-                            message=SimpleNamespace(id=42, text="An exam next week"))
+                            message=SimpleNamespace(id=42, text="An exam next week", date=published, edit_date=edited))
     sources = [{"_id": ObjectId(), "user_id": str(user_id)}]
     db = SimpleNamespace(
         sources=SimpleNamespace(find=Mock(return_value=SimpleNamespace(to_list=AsyncMock(return_value=sources)))),
@@ -83,6 +86,10 @@ async def test_import_carries_original_message_link(monkeypatch, channel_id, use
 
     assert save.call_args.kwargs["source_url"] == f"https://t.me/{path}/42"
     assert save.call_args.kwargs["source_name"] == "Course chat"
+    from services.deadline_extractor import content_hash
+    assert db.parsed_posts.find_one.call_args.args[0] == {"content_hash": content_hash(event.message.text, published)}
+    assert save.call_args.kwargs["post_date"] == published
+    assert save.call_args.kwargs["source_updated_at"] == edited
     send.assert_awaited_once()
 
 
