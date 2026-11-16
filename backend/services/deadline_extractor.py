@@ -28,10 +28,21 @@ def content_hash(text: str, post_date: Optional[datetime] = None) -> str:
 
 def _task_similarity(left: str, right: str) -> float:
     left, right = (task.split("|", 1)[0].casefold() for task in (left, right))
+    left, right = (re.sub(r"\bконтрольная\s+работа\b", "контрольная", task) for task in (left, right))
+    left, right = (re.sub(r"\bдз\s+по\s+", "", task) for task in (left, right))
     if re.findall(r"\d+", left) != re.findall(r"\d+", right):
         return 0
     left, right = (re.sub(r"[^\w]", "", task) for task in (left, right))
     return SequenceMatcher(None, left, right).ratio()
+
+
+def _same_subject(left: str, right: str) -> bool:
+    words = [re.findall(r"\w+", name.casefold()) for name in (left, right)]
+    names = ["".join(parts) for parts in words]
+    initials = ["".join(part if part.isdigit() else part[0] for part in parts) for parts in words]
+    return (names[0] == names[1]
+            or len(words[0]) > 1 and initials[0] == names[1]
+            or len(words[1]) > 1 and initials[1] == names[0])
 
 
 def _deadline_similarity(left, right):
@@ -205,6 +216,11 @@ async def _save_extracted_deadlines(
             seen_keys.add(key_tuple)
             unique_dedup_keys.append(k)
 
+    if source_type == "telegram":
+        unique_dedup_keys.extend(
+            {"user_id": uid, "source.type": "telegram", "source.source_id": source_id}
+            for uid in set(user_ids))
+
     existing_query = ({"user_id": user_ids[0], "source.type": "manytask", "source.source_id": source_id}
                       if source_type == "manytask" else {"$or": unique_dedup_keys})
     existing_deadlines = await db.deadlines.find(
@@ -224,9 +240,15 @@ async def _save_extracted_deadlines(
     now = datetime.utcnow()
 
     for doc in docs_to_insert:
-        candidates = sorted(
-            existing_by_user_name.get((doc["user_id"], "" if source_type == "manytask" else doc["name"]), []),
-            key=lambda existing: _deadline_similarity(existing, doc), reverse=True)
+        candidates = list(existing_by_user_name.get(
+            (doc["user_id"], "" if source_type == "manytask" else doc["name"]), []))
+        if source_type == "telegram":
+            candidates.extend(ed for ed in existing_deadlines
+                              if ed["user_id"] == doc["user_id"] and ed["name"] != doc["name"]
+                              and ed.get("source", {}).get("type") == "telegram"
+                              and ed["source"].get("source_id") == source_id
+                              and _same_subject(ed["name"], doc["name"]))
+        candidates.sort(key=lambda existing: _deadline_similarity(existing, doc), reverse=True)
         matched = False
 
         for existing in candidates:
@@ -280,7 +302,9 @@ async def _save_extracted_deadlines(
         # Intra-batch dedup: check against docs already accepted in this batch
         if not matched:
             for accepted in new_docs:
-                if accepted["user_id"] == doc["user_id"] and accepted["name"] == doc["name"]:
+                if accepted["user_id"] == doc["user_id"] and (
+                        accepted["name"] == doc["name"] or source_type == "telegram"
+                        and _same_subject(accepted["name"], doc["name"])):
                     ratio = _deadline_similarity(accepted, doc)
                     if ratio >= DEDUPE_SIMILARITY_THRESHOLD:
                         matched = True

@@ -151,6 +151,9 @@ async def test_notifications_only_cover_saved_changes_per_user(monkeypatch):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("old_task,new_task,details,post_day,last_seen,expected_new,expected_moved", [
+    ("Контрольная", "Контрольная работа", "", 20, 19, 0, 1),
+    ("Контрольная работа 1", "Контрольная 2", "", 20, 19, 1, 0),
+    ("Защита LSM-дерева", "Защита ДЗ по LSM-дереву", "", 20, 19, 0, 1),
     ("ДЗ 1", "ДЗ 2", "", 20, 19, 1, 0),
     ("HW 1.2", "HW 12", "", 20, 19, 1, 0),
     ("Exam groups 1,2,5,7", "Exam groups 12,5,7", "", 20, 19, 1, 0),
@@ -198,6 +201,28 @@ async def test_replaying_cached_old_post_does_not_roll_date_back(monkeypatch):
     assert await deadline_extractor.save_extracted_deadlines(
         ["user"], extracted, "source", "telegram", "Original exam post") == (0, [])
     db.deadlines.update_one.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("existing_source,expected_new", [("source", 0), ("other", 1)])
+async def test_subject_abbreviation_matches_only_within_same_telegram_source(monkeypatch, existing_source, expected_new):
+    from services import deadline_extractor
+    existing = {"_id": "old", "user_id": "user", "name": "СУБД", "task": "Контрольная",
+                "due_date": datetime(2026, 11, 28, 13, 30),
+                "source": {"type": "telegram", "source_id": existing_source}}
+    db = SimpleNamespace(
+        parsed_posts=SimpleNamespace(find_one=AsyncMock(return_value=None), insert_one=AsyncMock()),
+        deadlines=SimpleNamespace(
+            find=Mock(return_value=SimpleNamespace(to_list=AsyncMock(return_value=[existing]))),
+            insert_many=AsyncMock(), update_one=AsyncMock()))
+    monkeypatch.setattr(deadline_extractor, "get_db", lambda: db)
+    count, moved = await deadline_extractor.save_extracted_deadlines(
+        ["user"], [{"subject": "Системы управления базами данных", "task_name": "Контрольная работа",
+                    "due_date": "2026-11-28T16:30:00", "confidence": .95}],
+        "source", "telegram", "Контрольная 28 ноября в 16:30")
+    assert (count, moved) == (expected_new, [])
+    assert {"user_id": "user", "source.type": "telegram", "source.source_id": "source"} in (
+        db.deadlines.find.call_args.args[0]["$or"])
 
 
 def test_cache_separates_same_relative_text_from_different_posts():
