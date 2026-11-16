@@ -95,6 +95,26 @@ class TestHaikuAnalyzerNoKey:
 
 class TestProviderFallback:
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("text,quote,accepted", [
+        ("Ссылка на семинар", "ДЗ до 22 ноября", False),
+        ("Ссылка на семинар", "", False),
+        ("Ссылка на семинар", None, False),
+        ("ДЗ 6 сдать до 22 ноября 23:59", "до 22 ноября 23:59", True),
+        ("Дедлайн ДЗ 6 перенесён на завтра", "на завтра", True),
+    ])
+    async def test_deadline_date_must_be_supported_by_current_post(self, text, quote, accepted):
+        from services.haiku_analyzer import HaikuAnalyzer
+        deadline = {"subject": "СУБД", "task_name": "ДЗ 6",
+                    "due_date": "2026-11-22T23:59:00", "confidence": .95}
+        if quote is not None:
+            deadline["date_quote"] = quote
+        provider = FakeProvider("gemini", [json.dumps({"has_deadline": True, "deadlines": [deadline]})])
+        result = await HaikuAnalyzer(providers=[provider]).analyze_post(
+            text, channel_context="ДЗ до 22 ноября")
+        assert result["has_deadline"] is accepted
+        assert result["deadlines"] == ([deadline] if accepted else [])
+
+    @pytest.mark.asyncio
     async def test_relative_dates_use_post_date_in_moscow(self):
         from datetime import datetime, timezone
         from services.haiku_analyzer import HaikuAnalyzer
@@ -128,7 +148,7 @@ class TestProviderFallback:
         gemini = FakeProvider("gemini", ["not json"])
         groq = FakeProvider(
             "groq",
-            ['{"analysis": "ok", "has_deadline": true, "deadlines": []}'],
+            ['{"analysis": "ok", "has_deadline": true, "deadlines": [{"task_name": "ДЗ", "date_quote": "до завтра"}]}'],
         )
         haiku = FakeProvider(
             "haiku",
